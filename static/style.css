@@ -1,0 +1,147 @@
+:root {
+    --bg-gradient: linear-gradient(135deg, #0f172a 0%, #1e1b4b 100%);
+    --glass-bg: rgba(255, 255, 255, 0.05);
+    --glass-border: rgba(255, 255, 255, 0.1);
+    --fire: #ef4444; --death: #7c3aed;
+    --text-main: #f8fafc;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+    font-family: 'Inter', sans-serif;
+    background: var(--bg-gradient);
+    color: var(--text-main);
+    height: 100vh;
+    overflow: hidden;
+    display: flex;
+    justify-content: center;
+}
+
+#game-container {
+    width: 100%;
+    max-width: 1400px;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    padding: 20px;
+    gap: 20px;
+}
+
+.glass-panel {
+    background: var(--glass-bg);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid var(--glass-border);
+    border-radius: 16px;
+    padding: 20px;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.3);
+}
+
+/* Player Areas */
+.player-area {
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+    height: 30%;
+    transition: opacity 0.3s;
+}
+
+.player-area:not(.active-turn) { opacity: 0.6; pointer-events: none; }
+
+.header {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+}
+
+h2 { font-family: 'Cinzel', serif; font-size: 1.5rem; text-shadow: 0 2px 4px rgba(0,0,0,0.5); }
+
+/* Health Bar */
+.health-bar {
+    width: 300px; height: 24px;
+    background: rgba(0,0,0,0.5);
+    border-radius: 12px;
+    overflow: hidden;
+    border: 1px solid var(--glass-border);
+}
+.health-bar .fill {
+    height: 100%;
+    background: linear-gradient(90deg, #ef4444, #b91c1c);
+    transition: width 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.health-text { font-weight: 600; font-size: 1.1rem; }
+
+/* Status FX */
+.status-fx { display: flex; gap: 8px; font-size: 0.9rem; }
+.status-badge { padding: 4px 8px; border-radius: 6px; background: rgba(255,255,255,0.1); }
+.status-badge.dot { background: rgba(239, 68, 68, 0.2); border: 1px solid #ef4444; }
+.status-badge.ward { background: rgba(59, 130, 246, 0.2); border: 1px solid #3b82f6; }
+.status-badge.charm { background: rgba(245, 158, 11, 0.2); border: 1px solid #f59e0b; }
+
+/* Pips */
+.pips-container { display: flex; gap: 8px; height: 30px; }
+.pip {
+    width: 24px; height: 24px; border-radius: 50%;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.5);
+    display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: bold;
+}
+.pip.Normal { background: #fcd34d; color: #78350f; }
+.pip.Power { background: #fef08a; border: 2px solid #eab308; color: #713f12; }
+.pip.School { background: linear-gradient(135deg, #10b981, #3b82f6); color: white; border: 2px solid #fff; }
+.pip.Shadow { background: #1e1b4b; border: 2px solid #8b5cf6; color: white; }
+.pip.Fizzle { background: #94a3b8; border: 2px dashed #475569; }
+.pip.Critical { background: #f43f5e; border: 2px solid #fda4af; color: white; }
+
+/* Hand / Cards */
+.hand-container {
+    display: flex; gap: -20px; overflow-x: auto; padding-bottom: 20px; min-height: 200px;
+}
+.card {
+    height: 200px; width: auto;
+    border-radius: 12px;
+    cursor: pointer;
+    transition: transform 0.2s, box-shadow 0.2s, z-index 0s;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+    margin-right: -40px;
+}
+.card:hover { transform: translateY(-15px) scale(1.05); z-index: 10; margin-right: 0;}
+.card.disabled { filter: grayscale(100%) brightness(50%); cursor: not-allowed; }
+.opponent-hand .card { cursor: default; }
+.opponent-hand .card:hover { transform: none; }
+
+/* Center Arena */
+#center-arena { display: flex; gap: 20px; height: 35%; align-items: stretch;}
+
+#pip-bag {
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    width: 150px; background: var(--glass-bg); border-radius: 16px; border: 1px dashed var(--glass-border);
+}
+.bag-icon { font-size: 3rem; }
+
+#action-controls { display: flex; flex-direction: column; justify-content: center; gap: 15px; width: 250px;}
+.buttons { display: flex; flex-direction: column; gap: 10px; }
+button {
+    background: rgba(255,255,255,0.1); color: white; border: 1px solid var(--glass-border);
+    padding: 12px; border-radius: 8px; font-weight: 600; cursor: pointer; transition: 0.2s;
+}
+button:hover { background: rgba(255,255,255,0.2); }
+button:disabled { opacity: 0.5; cursor: not-allowed; }
+button.danger { border-color: #ef4444; color: #fca5a5; }
+button.danger:hover { background: rgba(239, 68, 68, 0.2); }
+
+#combat-log { flex: 1; overflow-y: auto; display: flex; flex-direction: column-reverse; }
+#log-list { list-style: none; display: flex; flex-direction: column; gap: 6px; }
+#log-list li { font-size: 0.9rem; border-bottom: 1px solid rgba(255,255,255,0.05); padding-bottom: 4px; }
+
+/* Modal */
+.modal {
+    position: fixed; top:0; left:0; width: 100vw; height: 100vh;
+    background: rgba(0,0,0,0.6); display: flex; align-items: center; justify-content: center;
+    z-index: 100; opacity: 1; transition: opacity 0.2s;
+}
+.modal.hidden { opacity: 0; pointer-events: none; }
+.modal-content { width: 400px; text-align: center; display: flex; flex-direction: column; gap: 20px; }
+.target-buttons { display: flex; gap: 10px; justify-content: center; }
+.target-buttons button { flex: 1; }

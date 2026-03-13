@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Wiz101 Duel</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&family=Cinzel:wght@600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <div id="game-container">
+        <!-- Player 2 (Top) -->
+        <div id="p2-area" class="player-area opponent">
+            <div class="header">
+                <h2 id="p2-name">Player 2</h2>
+                <div class="health-bar"><div id="p2-health-fill" class="fill"></div></div>
+                <span id="p2-health-text" class="health-text">0/0</span>
+                <div id="p2-status" class="status-fx"></div>
+            </div>
+            <div id="p2-pips" class="pips-container"></div>
+            <div id="p2-hand" class="hand-container opponent-hand"></div>
+        </div>
+
+        <!-- Center Arena -->
+        <div id="center-arena">
+            <div id="pip-bag">
+                <div class="bag-icon">🎒</div>
+                <div id="bag-count">Pips: 0</div>
+            </div>
+            
+            <div id="action-controls" class="glass-panel">
+                <h3 id="current-turn">Waiting...</h3>
+                <div class="buttons">
+                    <button id="btn-draw" onclick="drawPip()">Draw Pip</button>
+                    <button id="btn-pass" onclick="passTurn()">Pass Turn</button>
+                    <button id="btn-reset" onclick="resetGame()" class="danger">Reset Match</button>
+                </div>
+            </div>
+
+            <div id="combat-log" class="glass-panel scroll-y">
+                <ul id="log-list"></ul>
+            </div>
+        </div>
+
+        <!-- Player 1 (Bottom) -->
+        <div id="p1-area" class="player-area active">
+            <div class="header">
+                <h2 id="p1-name">Player 1</h2>
+                <div class="health-bar"><div id="p1-health-fill" class="fill"></div></div>
+                <span id="p1-health-text" class="health-text">0/0</span>
+                <div id="p1-status" class="status-fx"></div>
+            </div>
+            <div id="p1-pips" class="pips-container"></div>
+            <div id="p1-hand" class="hand-container"></div>
+        </div>
+    </div>
+    
+    <!-- Cast Modal -->
+    <div id="cast-modal" class="modal hidden">
+        <div class="modal-content glass-panel">
+            <h2>Select Target</h2>
+            <p>Target for: <span id="spell-name-display"></span></p>
+            <div class="target-buttons">
+                <button onclick="confirmCast('p1')">Self (P1)</button>
+                <button onclick="confirmCast('p2')">Opponent (P2)</button>
+            </div>
+            <button onclick="closeModal()" class="cancel">Cancel</button>
+        </div>
+    </div>
+
+    <script src="/static/app.js"></script>
+</body>
+</html>
