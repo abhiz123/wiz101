@@ -107,9 +107,16 @@ h2 { font-family: 'Cinzel', serif; font-size: 1.5rem; text-shadow: 0 2px 4px rgb
     margin-right: -40px;
 }
 .card:hover { transform: translateY(-15px) scale(1.05); z-index: 10; margin-right: 0;}
-.card.disabled { filter: grayscale(100%) brightness(50%); cursor: not-allowed; }
-.opponent-hand .card { cursor: default; }
+.card.disabled { filter: grayscale(100%) brightness(50%); cursor: not-allowed; pointer-events: none; }
+.opponent-hand .card { cursor: default; pointer-events: none; }
 .opponent-hand .card:hover { transform: none; }
+
+@keyframes hitEffect {
+    0% { transform: scale(1); filter: brightness(1) drop-shadow(0 0 0 rgba(239, 68, 68, 0)); }
+    50% { transform: scale(1.02); filter: brightness(1.2) drop-shadow(0 0 30px rgba(239, 68, 68, 1)); }
+    100% { transform: scale(1); filter: brightness(1) drop-shadow(0 0 0 rgba(239, 68, 68, 0)); }
+}
+.hit-anim { animation: hitEffect 0.5s ease-out; }
 
 /* Center Arena */
 #center-arena { display: flex; gap: 20px; height: 35%; align-items: stretch;}

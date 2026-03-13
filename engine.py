@@ -389,8 +389,8 @@ class Game:
         self.turn = self.p1.name
         self.logs = []
         # Setup hands
-        self.p1.draw_card(4)
-        self.p2.draw_card(4)
+        self.p1.draw_card(7)
+        self.p2.draw_card(7)
 
     def log(self, msg):
         self.logs.append(msg)

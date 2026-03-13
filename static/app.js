@@ -42,10 +42,38 @@ function initiateCast(cardId, cardName) {
     document.getElementById('cast-modal').classList.remove('hidden');
 }
 
-function confirmCast(targetId) {
+async function confirmCast(targetId) {
     const targetName = targetId === 'p1' ? gameState.p1.name : gameState.p2.name;
     document.getElementById('cast-modal').classList.add('hidden');
-    sendAction('cast_spell', { card_id: currentCastingCard, target_name: targetName });
+    
+    // Custom inline fetch to trigger animations immediately on cast success
+    const payload = { action: 'cast_spell', player: gameState.turn, card_id: currentCastingCard, target_name: targetName };
+    const res = await fetch('/api/action', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+    });
+    
+    const data = await res.json();
+    if(data.success && data.state) {
+        // Did we fizzle? Look at the newest log
+        const newLogs = data.state.logs;
+        const lastLog = newLogs[newLogs.length - 1] || "";
+        if (!lastLog.includes('Fizzle') && lastLog.includes('damage')) {
+            // Trigger Hit Animation
+            const targetArea = document.getElementById(`${targetId}-area`);
+            targetArea.classList.add('hit-anim');
+            setTimeout(() => targetArea.classList.remove('hit-anim'), 500);
+        } else if (lastLog.includes('Fizzle')) {
+            alert('Your spell fizzled!');
+        }
+
+        gameState = data.state;
+        render();
+    } else {
+        alert(data.error || "Not enough pips to cast this spell!");
+    }
+
     currentCastingCard = null;
 }
 
