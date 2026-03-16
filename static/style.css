@@ -75,10 +75,24 @@ h2 { font-family: 'Cinzel', serif; font-size: 1.5rem; text-shadow: 0 2px 4px rgb
 
 /* Status FX */
 .status-fx { display: flex; gap: 8px; font-size: 0.9rem; }
-.status-badge { padding: 4px 8px; border-radius: 6px; background: rgba(255,255,255,0.1); }
-.status-badge.dot { background: rgba(239, 68, 68, 0.2); border: 1px solid #ef4444; }
+.status-badge { padding: 4px 8px; border-radius: 6px; background: rgba(255,255,255,0.1); font-weight: 600; }
+.status-badge.dot  { background: rgba(239, 68, 68, 0.2);  border: 1px solid #ef4444; }
 .status-badge.ward { background: rgba(59, 130, 246, 0.2); border: 1px solid #3b82f6; }
-.status-badge.charm { background: rgba(245, 158, 11, 0.2); border: 1px solid #f59e0b; }
+.status-badge.charm { background: rgba(245, 158, 11, 0.15); border: 1px solid #f59e0b; }
+/* School-colored charm badges (higher specificity than .status-badge.charm) */
+.status-badge.charm-fire     { background: rgba(239, 68, 68, 0.25);  border-color: #ef4444; color: #fca5a5; }
+.status-badge.charm-death    { background: rgba(139, 92, 246, 0.25); border-color: #8b5cf6; color: #c4b5fd; }
+.status-badge.charm-life     { background: rgba(22, 163, 74, 0.25);  border-color: #16a34a; color: #86efac; }
+.status-badge.charm-ice      { background: rgba(14, 165, 233, 0.25); border-color: #0ea5e9; color: #7dd3fc; }
+.status-badge.charm-storm    { background: rgba(234, 179, 8, 0.25);  border-color: #eab308; color: #fef08a; }
+.status-badge.charm-myth     { background: rgba(217, 119, 6, 0.25);  border-color: #d97706; color: #fde68a; }
+.status-badge.charm-balance  { background: rgba(180, 83, 9, 0.25);   border-color: #b45309; color: #fcd34d; }
+.status-badge.charm-universal{ background: rgba(245, 158, 11, 0.25); border-color: #f59e0b; color: #fde68a; }
+/* School-colored ward badges */
+.status-badge.ward-fire     { background: rgba(239, 68, 68, 0.2);  border-color: #ef4444; color: #fca5a5; }
+.status-badge.ward-death    { background: rgba(139, 92, 246, 0.2); border-color: #8b5cf6; color: #c4b5fd; }
+.status-badge.ward-universal{ background: rgba(245, 158, 11, 0.2); border-color: #f59e0b; color: #fde68a; }
+.status-badge.ward-ice      { background: rgba(14, 165, 233, 0.2); border-color: #0ea5e9; color: #7dd3fc; }
 
 /* Pips */
 .pips-container { display: flex; gap: 8px; height: 30px; }
@@ -89,10 +103,17 @@ h2 { font-family: 'Cinzel', serif; font-size: 1.5rem; text-shadow: 0 2px 4px rgb
 }
 .pip.Normal { background: #fcd34d; color: #78350f; }
 .pip.Power { background: #fef08a; border: 2px solid #eab308; color: #713f12; }
-.pip.School { background: linear-gradient(135deg, #10b981, #3b82f6); color: white; border: 2px solid #fff; }
 .pip.Shadow { background: #1e1b4b; border: 2px solid #8b5cf6; color: white; }
-.pip.Fizzle { background: #94a3b8; border: 2px dashed #475569; }
+.pip.Fizzle { background: #94a3b8; border: 2px dashed #475569; color: #1e293b; }
 .pip.Critical { background: #f43f5e; border: 2px solid #fda4af; color: white; }
+/* School-specific pip colors */
+.pip.Fire     { background: linear-gradient(135deg, #dc2626, #f97316); color: white; border: 2px solid #fca5a5; }
+.pip.Death    { background: linear-gradient(135deg, #3b0764, #7c3aed); color: white; border: 2px solid #c4b5fd; }
+.pip.Life     { background: linear-gradient(135deg, #14532d, #16a34a); color: white; border: 2px solid #86efac; }
+.pip.Ice      { background: linear-gradient(135deg, #0c4a6e, #0ea5e9); color: white; border: 2px solid #7dd3fc; }
+.pip.Storm    { background: linear-gradient(135deg, #581c87, #eab308); color: white; border: 2px solid #d8b4fe; }
+.pip.Myth     { background: linear-gradient(135deg, #713f12, #d97706); color: white; border: 2px solid #fde68a; }
+.pip.Balance  { background: linear-gradient(135deg, #78350f, #b45309); color: white; border: 2px solid #fcd34d; }
 
 /* Hand / Cards */
 .hand-container {

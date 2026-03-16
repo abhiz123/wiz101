@@ -18,7 +18,7 @@
                 <div id="p2-status" class="status-fx"></div>
             </div>
             <div id="p2-pips" class="pips-container"></div>
-            <div id="p2-hand" class="hand-container opponent-hand"></div>
+            <div id="p2-hand" class="hand-container"></div>
         </div>
 
         <!-- Center Arena -->
@@ -61,8 +61,8 @@
             <h2>Select Target</h2>
             <p>Target for: <span id="spell-name-display"></span></p>
             <div class="target-buttons">
-                <button onclick="confirmCast('p1')">Self (P1)</button>
-                <button onclick="confirmCast('p2')">Opponent (P2)</button>
+                <button id="btn-target-self" onclick="confirmCast('p1')">Self</button>
+                <button id="btn-target-opp" onclick="confirmCast('p2')">Opponent</button>
             </div>
             <button onclick="closeModal()" class="cancel">Cancel</button>
         </div>

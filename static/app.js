@@ -27,14 +27,46 @@ function drawPip() { sendAction('draw_pip'); }
 function passTurn() { sendAction('pass_turn'); }
 function resetGame() { sendAction('reset'); location.reload(); }
 
+function canCastCard(player, card) {
+    const cost = card.cost;
+    if (card.school === 'Shadow') {
+        return player.pips.filter(p => p === 'Shadow').length >= cost;
+    }
+    const powerPips  = player.pips.filter(p => p === 'Power').length;
+    const schoolPips = player.pips.filter(p => p === player.school).length;
+    const normalPips = player.pips.filter(p => p === 'Normal').length;
+    const powerValuePips = powerPips + schoolPips;
+    if (player.school === card.school) {
+        return powerValuePips * 2 + normalPips >= cost;
+    } else {
+        return schoolPips * 2 + powerPips + normalPips >= cost;
+    }
+}
+
 function initiateCast(cardId, cardName) {
     if(!gameState) return;
-    const activeP = gameState.turn === gameState.p1.name ? gameState.p1 : gameState.p2;
+    const isP1Turn = gameState.turn === gameState.p1.name;
+    const activeP = isP1Turn ? gameState.p1 : gameState.p2;
     if(!activeP.has_drawn_pip) {
         alert("You must draw a pip first!"); return;
     }
     if(activeP.has_cast) {
         alert("You already cast this turn!"); return;
+    }
+
+    // Update modal target button labels to show actual player names
+    const selfBtn = document.getElementById('btn-target-self');
+    const oppBtn  = document.getElementById('btn-target-opp');
+    if (isP1Turn) {
+        selfBtn.textContent = `Self (${gameState.p1.name})`;
+        selfBtn.onclick = () => confirmCast('p1');
+        oppBtn.textContent  = `Opponent (${gameState.p2.name})`;
+        oppBtn.onclick = () => confirmCast('p2');
+    } else {
+        selfBtn.textContent = `Opponent (${gameState.p1.name})`;
+        selfBtn.onclick = () => confirmCast('p1');
+        oppBtn.textContent  = `Self (${gameState.p2.name})`;
+        oppBtn.onclick = () => confirmCast('p2');
     }
 
     currentCastingCard = cardId;
@@ -59,7 +91,8 @@ async function confirmCast(targetId) {
         // Did we fizzle? Look at the newest log
         const newLogs = data.state.logs;
         const lastLog = newLogs[newLogs.length - 1] || "";
-        if (!lastLog.includes('Fizzle') && lastLog.includes('damage')) {
+        const didDamage = newLogs.some(log => log.includes('damage'));
+        if (!lastLog.includes('Fizzle') && didDamage) {
             // Trigger Hit Animation
             const targetArea = document.getElementById(`${targetId}-area`);
             targetArea.classList.add('hit-anim');
@@ -102,31 +135,43 @@ function renderPlayer(p, containerPrefix, isOpponent) {
         statusContainer.innerHTML += `<div class="status-badge dot">${d.name} (${d.damage}/R)</div>`;
     });
     p.wards.forEach(w => {
-        statusContainer.innerHTML += `<div class="status-badge ward">${w.name}</div>`;
+        const schoolClass = 'ward-' + w.school.toLowerCase();
+        let label = w.name;
+        if (w.type === 'shield')                                     label += ` (-${w.value})`;
+        else if (w.type === 'trap_flat' || w.type === 'trap_fixed') label += ` (+${w.value})`;
+        statusContainer.innerHTML += `<div class="status-badge ward ${schoolClass}">${label}</div>`;
     });
     p.charms.forEach(c => {
-        statusContainer.innerHTML += `<div class="status-badge charm">${c.name}</div>`;
+        const schoolClass = 'charm-' + c.school.toLowerCase();
+        let label = c.name;
+        if (c.type === 'blade_flat' || c.type === 'blade_fixed') label += ` (+${c.value})`;
+        else if (c.type === 'weakness') label += ` (x${c.value})`;
+        statusContainer.innerHTML += `<div class="status-badge charm ${schoolClass}">${label}</div>`;
     });
 
     // Pips
     const pipsContainer = document.getElementById(`${containerPrefix}-pips`);
     pipsContainer.innerHTML = '';
+    const pipLabel = { Normal:'N', Power:'PP', Shadow:'Sh', Fizzle:'Fz', Critical:'★',
+                       Fire:'🔥', Death:'💀', Life:'🌿', Ice:'❄', Storm:'⚡', Myth:'🔮', Balance:'⚖' };
     p.pips.forEach(pipType => {
-        pipsContainer.innerHTML += `<div class="pip ${pipType}">${pipType[0]}</div>`;
+        const label = pipLabel[pipType] || pipType[0];
+        pipsContainer.innerHTML += `<div class="pip ${pipType}" title="${pipType}">${label}</div>`;
     });
 
     // Hand
     const handContainer = document.getElementById(`${containerPrefix}-hand`);
     handContainer.innerHTML = '';
     p.hand.forEach(c => {
-        // Evaluate if playable
-        let disabledClass = (!isActive || !p.has_drawn_pip || p.has_cast) ? 'disabled' : '';
-        // Frontend logic check (simplified, relies on backend constraint to block)
+        // Card is playable only if: it's your turn, pip drawn, not yet cast, and you can afford it
+        const globallyBlocked = !isActive || !p.has_drawn_pip || p.has_cast;
+        const affordable = canCastCard(p, c);
+        const disabledClass = (globallyBlocked || !affordable) ? 'disabled' : '';
         let imgHtml = '';
         if(isOpponent) {
              imgHtml = `<img src="/static/cards/Center%20card%20Back%20Final.png" class="card" alt="hidden card">`;
         } else {
-             imgHtml = `<img src="/static/cards/${c.image}" class="card ${disabledClass}" onclick="initiateCast('${c.id}', '${c.name}')" title="Cost: ${c.cost}">`;
+             imgHtml = `<img src="/static/cards/${c.image}" class="card ${disabledClass}" onclick="initiateCast('${c.id}', '${c.name}')" title="Cost: ${c.cost} | ${c.school}">`;
         }
         handContainer.innerHTML += imgHtml;
     });

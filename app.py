@@ -8,7 +8,7 @@ game_instance = None
 
 def get_or_create_game():
     global game_instance
-    if game_instance is None or (game_instance.p1.is_dead or game_instance.p2.is_dead):
+    if game_instance is None:
         p1 = Player("Pyromancer Bob", "Fire", 6500)
         p1.deck = get_fire_deck() * 2
         

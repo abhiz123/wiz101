@@ -72,39 +72,29 @@ class DamageSpell(Card):
         charms_to_consume = []
         for charm in caster.charms:
             if charm['school'] in [self.school, 'Universal', 'Elemental', 'Spirit']:
-                if charm['type'] == 'blade_mult':
-                    damage = int(damage * charm['value'])
+                if charm['type'] in ['blade_flat', 'blade_fixed']:
+                    damage += charm['value']
                     charms_to_consume.append(charm)
-                    game.log(f"Blade triggered: x{charm['value']} -> Damage: {damage}")
-                elif charm['type'] == 'blade_flat':
-                    bonus = charm['value'] * pips_spent
-                    damage += bonus
-                    charms_to_consume.append(charm)
-                    game.log(f"Flat Blade (+{charm['value']} per pip): +{bonus} -> Damage: {damage}")
+                    game.log(f"Blade triggered: +{charm['value']} -> Damage: {damage}")
                 elif charm['type'] == 'weakness':
                     damage = int(damage * charm['value'])
                     charms_to_consume.append(charm)
                     game.log(f"Weakness triggered: x{charm['value']} -> Damage: {damage}")
-        
+
         for c in charms_to_consume:
             caster.charms.remove(c)
 
         wards_to_consume = []
         for ward in target.wards:
            if ward['school'] in [self.school, 'Universal', 'Elemental', 'Spirit']:
-               if ward['type'] == 'trap_mult':
-                   damage = int(damage * ward['value'])
+               if ward['type'] in ['trap_flat', 'trap_fixed']:
+                   damage += ward['value']
                    wards_to_consume.append(ward)
-                   game.log(f"Trap triggered: x{ward['value']} -> Damage: {damage}")
-               elif ward['type'] == 'trap_flat':
-                   bonus = ward['value'] * pips_spent
-                   damage += bonus
-                   wards_to_consume.append(ward)
-                   game.log(f"Flat Trap (+{ward['value']} per pip): +{bonus} -> Damage: {damage}")
+                   game.log(f"Trap triggered: +{ward['value']} -> Damage: {damage}")
                elif ward['type'] == 'shield':
-                   damage = int(damage * ward['value']) 
+                   damage = max(0, damage - ward['value'])
                    wards_to_consume.append(ward)
-                   game.log(f"Shield triggered: x{ward['value']} -> Damage: {damage}")
+                   game.log(f"Shield blocked {ward['value']} -> Damage: {damage}")
 
         for w in wards_to_consume:
             target.wards.remove(w)
@@ -132,41 +122,31 @@ class DoTSpell(DamageSpell):
         if is_critical:
             damage *= 2
 
-        dot_bonus_mult = 1.0
         dot_bonus_flat = 0
 
         charms_to_consume = []
         for charm in caster.charms:
             if charm['school'] in [self.school, 'Universal', 'Elemental', 'Spirit']:
-                 if charm['type'] == 'blade_mult':
-                    damage = int(damage * charm['value'])
-                    dot_bonus_mult *= charm['value']
-                    charms_to_consume.append(charm)
-                 elif charm['type'] == 'blade_flat':
-                    bonus = charm['value'] * pips_spent
-                    damage += bonus
-                    dot_bonus_flat += bonus
+                 if charm['type'] in ['blade_flat', 'blade_fixed']:
+                    damage += charm['value']
+                    dot_bonus_flat += charm['value']
                     charms_to_consume.append(charm)
                  elif charm['type'] == 'weakness':
                     damage = int(damage * charm['value'])
-                    dot_bonus_mult *= charm['value']
                     charms_to_consume.append(charm)
-        
+
         for c in charms_to_consume:
              caster.charms.remove(c)
 
         wards_to_consume = []
         for ward in target.wards:
            if ward['school'] in [self.school, 'Universal', 'Elemental', 'Spirit']:
-               if ward['type'] == 'trap_mult':
-                   damage = int(damage * ward['value'])
-                   wards_to_consume.append(ward)
-               elif ward['type'] == 'trap_flat':
-                   bonus = ward['value'] * pips_spent
-                   damage += bonus
+               if ward['type'] in ['trap_flat', 'trap_fixed']:
+                   damage += ward['value']
+                   dot_bonus_flat += ward['value']
                    wards_to_consume.append(ward)
                elif ward['type'] == 'shield':
-                   damage = int(damage * ward['value'])
+                   damage = max(0, damage - ward['value'])
                    wards_to_consume.append(ward)
 
         for w in wards_to_consume:
@@ -176,7 +156,7 @@ class DoTSpell(DamageSpell):
         if damage > 0:
             target.take_damage(damage, game)
 
-        final_dot_damage_per_tick = int((self.dot_damage * dot_bonus_mult) + dot_bonus_flat)
+        final_dot_damage_per_tick = self.dot_damage + dot_bonus_flat
         target.dots.append({
             'name': self.name,
             'damage': final_dot_damage_per_tick,
@@ -208,7 +188,7 @@ class CharmSpell(Card):
     def __init__(self, name, school, cost, target_school, charm_type, value, accuracy=100):
         super().__init__(name, school, cost, accuracy)
         self.target_school = target_school
-        self.charm_type = charm_type 
+        self.charm_type = charm_type
         self.value = value
         self.type = 'charm'
 
@@ -220,20 +200,46 @@ class CharmSpell(Card):
         return d
 
     def cast(self, caster, target, pips_spent, game):
-        target.charms.append({
-            'name': self.name,
-            'school': self.target_school,
-            'type': self.charm_type,
-            'value': self.value
-        })
-        game.log(f"{caster.name} cast {self.name} on {target.name}.")
+        if self.charm_type == 'blade_flat':
+            # Per-pip blades: consume ALL pips, pre-compute bonus
+            pip_count = pips_spent + len(caster.pips)
+            computed_value = self.value * pip_count
+            for p in list(caster.pips):
+                game.bag.return_pip('School' if p == caster.school else p)
+            caster.pips.clear()
+            target.charms.append({
+                'name': self.name,
+                'school': self.target_school,
+                'type': 'blade_flat',
+                'value': computed_value
+            })
+            game.log(f"{caster.name} cast {self.name}: consumed {pip_count} pips -> +{computed_value} bonus stored.")
+        elif self.charm_type == 'blade_fixed':
+            # Fixed blades: no pip consumption, flat bonus
+            target.charms.append({
+                'name': self.name,
+                'school': self.target_school,
+                'type': 'blade_fixed',
+                'value': self.value
+            })
+            game.log(f"{caster.name} cast {self.name}: +{self.value} bonus stored.")
+        else:
+            # weakness and other charms: no pip consumption
+            target.charms.append({
+                'name': self.name,
+                'school': self.target_school,
+                'type': self.charm_type,
+                'value': self.value
+            })
+            game.log(f"{caster.name} cast {self.name} on {target.name}.")
 
 class WardSpell(Card):
-    def __init__(self, name, school, cost, target_school, ward_type, value, accuracy=100):
+    def __init__(self, name, school, cost, target_school, ward_type, value, accuracy=100, self_value=None):
         super().__init__(name, school, cost, accuracy)
         self.target_school = target_school
         self.ward_type = ward_type
         self.value = value
+        self.self_value = self_value
         self.type = 'ward'
 
     def to_dict(self):
@@ -244,13 +250,47 @@ class WardSpell(Card):
         return d
 
     def cast(self, caster, target, pips_spent, game):
-        target.wards.append({
-            'name': self.name,
-            'school': self.target_school,
-            'type': self.ward_type,
-            'value': self.value
-        })
-        game.log(f"{caster.name} cast {self.name} on {target.name}.")
+        if self.ward_type == 'trap_flat':
+            # Per-pip traps: consume ALL pips, pre-compute bonus
+            pip_count = pips_spent + len(caster.pips)
+            computed_value = self.value * pip_count
+            for p in list(caster.pips):
+                game.bag.return_pip('School' if p == caster.school else p)
+            caster.pips.clear()
+            target.wards.append({
+                'name': self.name,
+                'school': self.target_school,
+                'type': 'trap_flat',
+                'value': computed_value
+            })
+            game.log(f"{caster.name} cast {self.name}: consumed {pip_count} pips -> +{computed_value} trap on {target.name}.")
+        elif self.ward_type == 'trap_fixed':
+            # Fixed traps: no pip consumption
+            target.wards.append({
+                'name': self.name,
+                'school': self.target_school,
+                'type': 'trap_fixed',
+                'value': self.value
+            })
+            game.log(f"{caster.name} cast {self.name}: +{self.value} trap on {target.name}.")
+            # Feint backlash: also place a trap on the caster
+            if self.self_value is not None:
+                caster.wards.append({
+                    'name': f"{self.name} (backlash)",
+                    'school': 'Universal',
+                    'type': 'trap_fixed',
+                    'value': self.self_value
+                })
+                game.log(f"Backlash: +{self.self_value} trap on {caster.name}.")
+        else:
+            # shield and other wards
+            target.wards.append({
+                'name': self.name,
+                'school': self.target_school,
+                'type': self.ward_type,
+                'value': self.value
+            })
+            game.log(f"{caster.name} cast {self.name} on {target.name}.")
 
 class Player:
     def __init__(self, name, school, max_health):
@@ -258,7 +298,7 @@ class Player:
         self.school = school
         self.max_health = max_health
         self.health = max_health
-        self.pips = [] 
+        self.pips = []
         self.deck = []
         self.hand = []
         self.discard = []
@@ -272,6 +312,8 @@ class Player:
 
     def draw_card(self, amount=1):
         for _ in range(amount):
+            if len(self.hand) >= 7:
+                break
             if not self.deck:
                 if not self.discard:
                     break
@@ -280,14 +322,14 @@ class Player:
                 random.shuffle(self.deck)
             card = self.deck.pop(0)
             self.hand.append(card)
-        while len(self.hand) > 7:
-            discarded = self.hand.pop(random.randint(0, len(self.hand)-1))
-            self.discard.append(discarded)
 
     def draw_pip(self, bag):
         if len(self.pips) < 10:
             p = bag.draw()
             if p:
+                # Convert generic School pip to this player's school
+                if p == 'School':
+                    p = self.school
                 self.pips.append(p)
                 return p
         return None
@@ -319,7 +361,7 @@ class Player:
             return self.pips.count('Shadow') >= card.cost
 
         power_pips = self.pips.count('Power')
-        school_pips = self.pips.count('School')
+        school_pips = self.pips.count(self.school)
         normal_pips = self.pips.count('Normal')
         power_value_pips = power_pips + school_pips
 
@@ -347,7 +389,7 @@ class Player:
                     cost_remaining -= cost_val
                     pips_to_remove.append(p)
                     pips_spent += 1
-                elif p == 'School':
+                elif p == self.school:
                     cost_val = min(2, cost_remaining)
                     cost_remaining -= cost_val
                     pips_to_remove.append(p)
@@ -359,7 +401,7 @@ class Player:
 
         for p in pips_to_remove:
             self.pips.remove(p)
-            bag.return_pip(p)
+            bag.return_pip('School' if p == self.school else p)
         return pips_spent
 
     def to_dict(self):
@@ -403,6 +445,8 @@ class Game:
         return self.p2 if self.turn == self.p1.name else self.p1
 
     def draw_pip(self):
+        if self.p1.is_dead or self.p2.is_dead:
+            return False
         player = self.active_player()
         if not player.has_drawn_pip_this_turn:
             drawn = player.draw_pip(self.bag)
@@ -415,6 +459,8 @@ class Game:
         return False
 
     def cast_spell(self, card_id, target_name):
+        if self.p1.is_dead or self.p2.is_dead:
+            return False
         player = self.active_player()
         if not player.has_drawn_pip_this_turn or player.has_cast_this_turn:
             return False
@@ -422,7 +468,7 @@ class Game:
         card = next((c for c in player.hand if c.id == card_id), None)
         if not card or not player.can_cast(card):
             return False
-            
+
         self.log(f"{player.name} attempts to cast {card.name}.")
         player.hand.remove(card)
         player.has_cast_this_turn = True
@@ -437,13 +483,15 @@ class Game:
         target = self.p1 if target_name == self.p1.name else self.p2
 
         # Override target context for buffs/self-heals
-        if isinstance(card, HealSpell) or (isinstance(card, CharmSpell) and card.charm_type in ['blade_mult', 'blade_flat']):
+        if isinstance(card, HealSpell) or (isinstance(card, CharmSpell) and card.charm_type in ['blade_flat', 'blade_fixed']):
             target = player
+        elif isinstance(card, WardSpell) and card.ward_type == 'shield':
+            target = player  # shields go on yourself
         elif isinstance(card, CharmSpell) and card.charm_type == 'weakness':
             target = self.inactive_player()
         elif not isinstance(card, HealSpell) and not isinstance(card, CharmSpell):
             target = self.inactive_player()
-            
+
         card.cast(player, target, pips_spent, self)
         player.discard.append(card)
         self.check_game_over()
