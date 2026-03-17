@@ -26,20 +26,24 @@ async function sendAction(action, extraData = {}) {
 function drawPip() { sendAction('draw_pip'); }
 function passTurn() { sendAction('pass_turn'); }
 function resetGame() { sendAction('reset'); location.reload(); }
+function discardCard(cardId) { sendAction('discard_card', { card_id: cardId }); }
 
 function canCastCard(player, card) {
-    const cost = card.cost;
     if (card.school === 'Shadow') {
-        return player.pips.filter(p => p === 'Shadow').length >= cost;
+        return player.pips.filter(p => p === 'Shadow').length >= card.cost;
     }
     const powerPips  = player.pips.filter(p => p === 'Power').length;
     const schoolPips = player.pips.filter(p => p === player.school).length;
     const normalPips = player.pips.filter(p => p === 'Normal').length;
-    const powerValuePips = powerPips + schoolPips;
+    const schoolPipReq = card.school_pip_cost || 0;
+
+    if (schoolPipReq > 0 && schoolPips < schoolPipReq) return false;
+
+    const availableSchool = schoolPips - schoolPipReq;
     if (player.school === card.school) {
-        return powerValuePips * 2 + normalPips >= cost;
+        return (powerPips + availableSchool) * 2 + normalPips >= card.cost;
     } else {
-        return schoolPips * 2 + powerPips + normalPips >= cost;
+        return availableSchool * 2 + powerPips + normalPips >= card.cost;
     }
 }
 
@@ -92,13 +96,10 @@ async function confirmCast(targetId) {
         const newLogs = data.state.logs;
         const lastLog = newLogs[newLogs.length - 1] || "";
         const didDamage = newLogs.some(log => log.includes('damage'));
-        if (!lastLog.includes('Fizzle') && didDamage) {
-            // Trigger Hit Animation
+        if (didDamage) {
             const targetArea = document.getElementById(`${targetId}-area`);
             targetArea.classList.add('hit-anim');
             setTimeout(() => targetArea.classList.remove('hit-anim'), 500);
-        } else if (lastLog.includes('Fizzle')) {
-            alert('Your spell fizzled!');
         }
 
         gameState = data.state;
@@ -167,13 +168,17 @@ function renderPlayer(p, containerPrefix, isOpponent) {
         const globallyBlocked = !isActive || !p.has_drawn_pip || p.has_cast;
         const affordable = canCastCard(p, c);
         const disabledClass = (globallyBlocked || !affordable) ? 'disabled' : '';
-        let imgHtml = '';
+        let cardHtml = '';
         if(isOpponent) {
-             imgHtml = `<img src="/static/cards/Center%20card%20Back%20Final.png" class="card" alt="hidden card">`;
+            cardHtml = `<div class="card-wrapper"><img src="/static/cards/Center%20card%20Back%20Final.png" class="card" alt="hidden card"></div>`;
         } else {
-             imgHtml = `<img src="/static/cards/${c.image}" class="card ${disabledClass}" onclick="initiateCast('${c.id}', '${c.name}')" title="Cost: ${c.cost} | ${c.school}">`;
+            const onCast = (globallyBlocked || !affordable) ? '' : `onclick="initiateCast('${c.id}', '${c.name}')"`;
+            const rightClick = isActive ? `oncontextmenu="event.preventDefault(); discardCard('${c.id}')"` : `oncontextmenu="event.preventDefault()"`;
+            cardHtml = `<div class="card-wrapper">
+                <img src="/static/cards/${c.image}" class="card ${disabledClass}" ${onCast} ${rightClick} title="Cost: ${c.cost} | ${c.school} (Right-click to discard)">
+            </div>`;
         }
-        handContainer.innerHTML += imgHtml;
+        handContainer.innerHTML += cardHtml;
     });
 }
 

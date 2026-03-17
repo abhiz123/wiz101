@@ -49,6 +49,9 @@ def handle_action():
         card_id = data.get('card_id')
         target_name = data.get('target_name')
         success = game.cast_spell(card_id, target_name)
+    elif action == 'discard_card':
+        card_id = data.get('card_id')
+        success = game.discard_card(card_id)
     elif action == 'pass_turn':
         game.pass_turn()
         success = True

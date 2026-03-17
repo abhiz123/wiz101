@@ -119,6 +119,12 @@ h2 { font-family: 'Cinzel', serif; font-size: 1.5rem; text-shadow: 0 2px 4px rgb
 .hand-container {
     display: flex; gap: -20px; overflow-x: auto; padding-bottom: 20px; min-height: 200px;
 }
+.card-wrapper {
+    display: flex; flex-direction: column; align-items: center; gap: 4px;
+    margin-right: -40px; position: relative; z-index: 1;
+}
+.card-wrapper:hover { z-index: 10; margin-right: 0; }
+.card-wrapper .card { margin-right: 0; }
 .card {
     height: 200px; width: auto;
     border-radius: 12px;
@@ -127,8 +133,8 @@ h2 { font-family: 'Cinzel', serif; font-size: 1.5rem; text-shadow: 0 2px 4px rgb
     box-shadow: 0 4px 15px rgba(0,0,0,0.5);
     margin-right: -40px;
 }
-.card:hover { transform: translateY(-15px) scale(1.05); z-index: 10; margin-right: 0;}
-.card.disabled { filter: grayscale(100%) brightness(50%); cursor: not-allowed; pointer-events: none; }
+.card:hover, .card-wrapper:hover .card { transform: translateY(-15px) scale(1.05); }
+.card.disabled { filter: grayscale(100%) brightness(50%); cursor: not-allowed; }
 .opponent-hand .card { cursor: default; pointer-events: none; }
 .opponent-hand .card:hover { transform: none; }
 

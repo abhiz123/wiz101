@@ -5,9 +5,9 @@ class PipBag:
     def __init__(self, num_players=2):
         self.pips = []
         if num_players == 2:
-            self.pips = ['Normal'] * 7 + ['Power'] * 10 + ['School'] * 4 + ['Shadow'] * 4 + ['Fizzle'] * 3 + ['Critical'] * 2
+            self.pips = ['Normal'] * 7 + ['Power'] * 10 + ['School'] * 4 + ['Shadow'] * 4
         else:
-            self.pips = ['Normal'] * 13 + ['Power'] * 20 + ['School'] * 8 + ['Shadow'] * 8 + ['Fizzle'] * 7 + ['Critical'] * 4
+            self.pips = ['Normal'] * 13 + ['Power'] * 20 + ['School'] * 8 + ['Shadow'] * 8
         random.shuffle(self.pips)
 
     def draw(self):
@@ -24,12 +24,13 @@ class PipBag:
 
 
 class Card:
-    def __init__(self, name, school, cost, accuracy=100):
+    def __init__(self, name, school, cost, accuracy=100, school_pip_cost=0):
         self.id = str(uuid.uuid4())
         self.name = name
         self.school = school
         self.cost = cost
         self.accuracy = accuracy
+        self.school_pip_cost = school_pip_cost
         self.type = 'normal'
 
     def cast(self, caster, target, pips_spent, game):
@@ -42,6 +43,7 @@ class Card:
             'school': self.school,
             'cost': self.cost,
             'accuracy': self.accuracy,
+            'school_pip_cost': self.school_pip_cost,
             'type': self.type,
             'image': self.name + '.png'
         }
@@ -50,8 +52,8 @@ class Card:
         return f"{self.name} ({self.school}, Cost: {self.cost})"
 
 class DamageSpell(Card):
-    def __init__(self, name, school, cost, base_damage, accuracy=100):
-        super().__init__(name, school, cost, accuracy)
+    def __init__(self, name, school, cost, base_damage, accuracy=100, school_pip_cost=0):
+        super().__init__(name, school, cost, accuracy, school_pip_cost)
         self.base_damage = base_damage
         self.type = 'damage'
 
@@ -356,34 +358,54 @@ class Player:
         self.dots = remaining_dots
 
     def can_cast(self, card):
-        cost_remaining = card.cost
         if card.school == 'Shadow':
             return self.pips.count('Shadow') >= card.cost
 
         power_pips = self.pips.count('Power')
         school_pips = self.pips.count(self.school)
         normal_pips = self.pips.count('Normal')
-        power_value_pips = power_pips + school_pips
+
+        # Enforce school pip requirement — cannot substitute with power pips
+        if card.school_pip_cost > 0 and school_pips < card.school_pip_cost:
+            return False
+
+        # Remaining school pips (after fulfilling requirement) act as power pips
+        available_school = school_pips - card.school_pip_cost
+        remaining_cost = card.cost
 
         if self.school == card.school:
-            return power_value_pips * 2 + normal_pips >= cost_remaining
+            return (power_pips + available_school) * 2 + normal_pips >= remaining_cost
         else:
-            return school_pips * 2 + power_pips + normal_pips >= cost_remaining
+            return available_school * 2 + power_pips + normal_pips >= remaining_cost
 
     def spend_pips(self, card, bag):
         cost_remaining = card.cost
+        school_pip_req = card.school_pip_cost
         pips_spent = 0
         pips_to_remove = []
 
         if card.school == 'Shadow':
-             for p in self.pips:
-                 if p == 'Shadow' and cost_remaining > 0:
-                     pips_to_remove.append(p)
-                     cost_remaining -= 1
-                     pips_spent += 1
+            for p in self.pips:
+                if p == 'Shadow' and cost_remaining > 0:
+                    pips_to_remove.append(p)
+                    cost_remaining -= 1
+                    pips_spent += 1
         else:
-            for p in sorted(self.pips, key=lambda x: 1 if x == 'Normal' else 0):
-                if cost_remaining <= 0: break
+            # 1. Spend required school pips first
+            remaining_pips = list(self.pips)
+            for p in remaining_pips[:]:
+                if school_pip_req <= 0:
+                    break
+                if p == self.school:
+                    pips_to_remove.append(p)
+                    remaining_pips.remove(p)
+                    school_pip_req -= 1
+                    pips_spent += 1
+
+            # 2. Spend remaining cost using highest-value pips first
+            for p in sorted(remaining_pips, key=lambda x: 1 if x == 'Normal' else 0):
+                if cost_remaining <= 0:
+                    break
                 if p == 'Power' and self.school == card.school:
                     cost_val = min(2, cost_remaining)
                     cost_remaining -= cost_val
@@ -451,7 +473,7 @@ class Game:
         if not player.has_drawn_pip_this_turn:
             drawn = player.draw_pip(self.bag)
             player.has_drawn_pip_this_turn = True
-            player.draw_card(1)
+            player.draw_card(7)
             player.process_dots(self)
             self.log(f"{player.name} started turn: drew pip [{drawn}], drew 1 card.")
             self.check_game_over()
@@ -472,12 +494,6 @@ class Game:
         self.log(f"{player.name} attempts to cast {card.name}.")
         player.hand.remove(card)
         player.has_cast_this_turn = True
-
-        roll = random.randint(1, 100)
-        if roll > card.accuracy:
-            self.log(f"Fizzle! {card.name} fizzled.")
-            player.discard.append(card)
-            return True
 
         pips_spent = player.spend_pips(card, self.bag)
         target = self.p1 if target_name == self.p1.name else self.p2
@@ -508,6 +524,18 @@ class Game:
         self.active_player().has_cast_this_turn = False
         if self.turn == self.p1.name:
              self.round += 1
+
+    def discard_card(self, card_id):
+        if self.p1.is_dead or self.p2.is_dead:
+            return False
+        player = self.active_player()
+        card = next((c for c in player.hand if c.id == card_id), None)
+        if not card:
+            return False
+        player.hand.remove(card)
+        player.discard.append(card)
+        self.log(f"{player.name} discarded {card.name}.")
+        return True
 
     def check_game_over(self):
         if self.p1.is_dead and self.p2.is_dead:
