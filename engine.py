@@ -1,6 +1,15 @@
 import random
 import uuid
 
+ELEMENTAL_SCHOOLS = {'Fire', 'Ice', 'Storm'}
+SPIRIT_SCHOOLS    = {'Life', 'Death', 'Myth'}
+
+def _school_matches(charm_school, spell_school):
+    if charm_school in (spell_school, 'Universal'): return True
+    if charm_school == 'Elemental': return spell_school in ELEMENTAL_SCHOOLS
+    if charm_school == 'Spirit':    return spell_school in SPIRIT_SCHOOLS
+    return False
+
 class PipBag:
     def __init__(self, num_players=2):
         self.pips = []
@@ -24,13 +33,14 @@ class PipBag:
 
 
 class Card:
-    def __init__(self, name, school, cost, accuracy=100, school_pip_cost=0):
+    def __init__(self, name, school, cost, accuracy=100, school_pip_cost=0, image=None):
         self.id = str(uuid.uuid4())
         self.name = name
         self.school = school
         self.cost = cost
         self.accuracy = accuracy
         self.school_pip_cost = school_pip_cost
+        self.image = image or (name + '.png')
         self.type = 'normal'
 
     def cast(self, caster, target, pips_spent, game):
@@ -45,15 +55,15 @@ class Card:
             'accuracy': self.accuracy,
             'school_pip_cost': self.school_pip_cost,
             'type': self.type,
-            'image': self.name + '.png'
+            'image': self.image
         }
 
     def __str__(self):
         return f"{self.name} ({self.school}, Cost: {self.cost})"
 
 class DamageSpell(Card):
-    def __init__(self, name, school, cost, base_damage, accuracy=100, school_pip_cost=0):
-        super().__init__(name, school, cost, accuracy, school_pip_cost)
+    def __init__(self, name, school, cost, base_damage, accuracy=100, school_pip_cost=0, **kwargs):
+        super().__init__(name, school, cost, accuracy, school_pip_cost, **kwargs)
         self.base_damage = base_damage
         self.type = 'damage'
 
@@ -76,7 +86,7 @@ class DamageSpell(Card):
         for charm in caster.charms:
             if charm['name'] in used_charm_names:
                 continue
-            if charm['school'] in [self.school, 'Universal', 'Elemental', 'Spirit']:
+            if _school_matches(charm['school'], self.school):
                 if charm['type'] in ['blade_flat', 'blade_fixed']:
                     damage += charm['value']
                     charms_to_consume.append(charm)
@@ -96,7 +106,7 @@ class DamageSpell(Card):
         for ward in target.wards:
             if ward['name'] in used_ward_names:
                 continue
-            if ward['school'] in [self.school, 'Universal', 'Elemental', 'Spirit']:
+            if _school_matches(ward['school'], self.school):
                 if ward['type'] in ['trap_flat', 'trap_fixed']:
                     damage += ward['value']
                     wards_to_consume.append(ward)
@@ -115,8 +125,8 @@ class DamageSpell(Card):
         target.take_damage(damage, game)
 
 class DoTSpell(DamageSpell):
-    def __init__(self, name, school, cost, initial_damage, dot_damage, dot_rounds, accuracy=100):
-        super().__init__(name, school, cost, initial_damage, accuracy)
+    def __init__(self, name, school, cost, initial_damage, dot_damage, dot_rounds, accuracy=100, **kwargs):
+        super().__init__(name, school, cost, initial_damage, accuracy, **kwargs)
         self.dot_damage = dot_damage
         self.dot_rounds = dot_rounds
         self.type = 'dot'
@@ -141,7 +151,7 @@ class DoTSpell(DamageSpell):
         for charm in caster.charms:
             if charm['name'] in used_charm_names:
                 continue
-            if charm['school'] in [self.school, 'Universal', 'Elemental', 'Spirit']:
+            if _school_matches(charm['school'], self.school):
                 if charm['type'] in ['blade_flat', 'blade_fixed']:
                     damage += charm['value']
                     dot_bonus_flat += charm['value']
@@ -160,7 +170,7 @@ class DoTSpell(DamageSpell):
         for ward in target.wards:
             if ward['name'] in used_ward_names:
                 continue
-            if ward['school'] in [self.school, 'Universal', 'Elemental', 'Spirit']:
+            if _school_matches(ward['school'], self.school):
                 if ward['type'] in ['trap_flat', 'trap_fixed']:
                     damage += ward['value']
                     dot_bonus_flat += ward['value']
@@ -188,8 +198,8 @@ class DoTSpell(DamageSpell):
 
 
 class HealSpell(Card):
-    def __init__(self, name, school, cost, heal_amount, accuracy=100):
-        super().__init__(name, school, cost, accuracy)
+    def __init__(self, name, school, cost, heal_amount, accuracy=100, **kwargs):
+        super().__init__(name, school, cost, accuracy, **kwargs)
         self.heal_amount = heal_amount
         self.type = 'heal'
 
@@ -207,8 +217,8 @@ class HealSpell(Card):
         target.heal(heal, game)
 
 class CharmSpell(Card):
-    def __init__(self, name, school, cost, target_school, charm_type, value, accuracy=100):
-        super().__init__(name, school, cost, accuracy)
+    def __init__(self, name, school, cost, target_school, charm_type, value, accuracy=100, **kwargs):
+        super().__init__(name, school, cost, accuracy, **kwargs)
         self.target_school = target_school
         self.charm_type = charm_type
         self.value = value
@@ -256,8 +266,8 @@ class CharmSpell(Card):
             game.log(f"{caster.name} cast {self.name} on {target.name}.")
 
 class WardSpell(Card):
-    def __init__(self, name, school, cost, target_school, ward_type, value, accuracy=100, self_value=None):
-        super().__init__(name, school, cost, accuracy)
+    def __init__(self, name, school, cost, target_school, ward_type, value, accuracy=100, self_value=None, **kwargs):
+        super().__init__(name, school, cost, accuracy, **kwargs)
         self.target_school = target_school
         self.ward_type = ward_type
         self.value = value
@@ -313,6 +323,66 @@ class WardSpell(Card):
                 'value': self.value
             })
             game.log(f"{caster.name} cast {self.name} on {target.name}.")
+
+class ReshuffleSpell(Card):
+    def __init__(self, name, school, cost, **kwargs):
+        super().__init__(name, school, cost, **kwargs)
+        self.type = 'reshuffle'
+
+    def cast(self, caster, target, pips_spent, game):
+        caster.deck.extend(caster.discard)
+        caster.discard = []
+        random.shuffle(caster.deck)
+        game.log(f"{caster.name} reshuffled {len(caster.deck)} cards back into their deck.")
+
+
+class DrainSpell(DamageSpell):
+    def __init__(self, name, school, cost, base_damage, heal_amount, **kwargs):
+        super().__init__(name, school, cost, base_damage, **kwargs)
+        self.heal_amount = heal_amount
+        self.type = 'drain'
+
+    def to_dict(self):
+        d = super().to_dict()
+        d['heal_amount'] = self.heal_amount
+        return d
+
+    def cast(self, caster, target, pips_spent, game):
+        super().cast(caster, target, pips_spent, game)
+        caster.heal(self.heal_amount, game)
+
+
+class UtilitySpell(Card):
+    def __init__(self, name, school, cost, utility_type, value=0, **kwargs):
+        super().__init__(name, school, cost, **kwargs)
+        self.utility_type = utility_type
+        self.value = value
+        self.type = 'utility'
+
+    def to_dict(self):
+        d = super().to_dict()
+        d['utility_type'] = self.utility_type
+        d['value'] = self.value
+        return d
+
+    def cast(self, caster, target, pips_spent, game):
+        if self.utility_type == 'add_pips':
+            for _ in range(self.value):
+                if len(caster.pips) < 10:
+                    caster.pips.append('Normal')
+            game.log(f"{caster.name} gained {self.value} Normal pips from {self.name}.")
+
+
+class WildBoltSpell(DamageSpell):
+    def __init__(self, name, school, cost, **kwargs):
+        super().__init__(name, school, cost, 0, **kwargs)
+        self.type = 'damage'
+
+    def cast(self, caster, target, pips_spent, game):
+        self.base_damage = random.choice([10, 100, 1000])
+        game.log(f"Wild Bolt rolls {self.base_damage}!")
+        super().cast(caster, target, pips_spent, game)
+
 
 class Player:
     def __init__(self, name, school, max_health):
@@ -519,7 +589,7 @@ class Game:
         target = self.p1 if target_name == self.p1.name else self.p2
 
         # Override target context for buffs/self-heals
-        if isinstance(card, HealSpell) or (isinstance(card, CharmSpell) and card.charm_type in ['blade_flat', 'blade_fixed']):
+        if isinstance(card, (HealSpell, ReshuffleSpell, UtilitySpell)) or (isinstance(card, CharmSpell) and card.charm_type in ['blade_flat', 'blade_fixed']):
             target = player
         elif isinstance(card, WardSpell) and card.ward_type == 'shield':
             target = player  # shields go on yourself

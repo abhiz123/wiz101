@@ -1,6 +1,7 @@
 from flask import Flask, jsonify, request, send_from_directory
 from engine import Game, Player
-from cards import get_fire_deck, get_death_deck
+from cards import (get_fire_deck, get_death_deck, get_ice_deck,
+                   get_life_deck, get_storm_deck, get_myth_deck)
 import os
 
 app = Flask(__name__)
@@ -10,10 +11,10 @@ def get_or_create_game():
     global game_instance
     if game_instance is None:
         p1 = Player("Pyromancer Bob", "Fire", 6500)
-        p1.deck = get_fire_deck() * 2
-        
+        p1.deck = get_fire_deck()
+
         p2 = Player("Necromancer Alice", "Death", 7000)
-        p2.deck = get_death_deck() * 2
+        p2.deck = get_death_deck()
 
         game_instance = Game(p1, p2)
         game_instance.log(f"=== Match Start: {p1.name} vs {p2.name} ===")
