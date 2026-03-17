@@ -72,31 +72,41 @@ class DamageSpell(Card):
             game.log(f"CRITICAL HIT! Base damage doubled to {damage}.")
 
         charms_to_consume = []
+        used_charm_names = set()
         for charm in caster.charms:
+            if charm['name'] in used_charm_names:
+                continue
             if charm['school'] in [self.school, 'Universal', 'Elemental', 'Spirit']:
                 if charm['type'] in ['blade_flat', 'blade_fixed']:
                     damage += charm['value']
                     charms_to_consume.append(charm)
+                    used_charm_names.add(charm['name'])
                     game.log(f"Blade triggered: +{charm['value']} -> Damage: {damage}")
                 elif charm['type'] == 'weakness':
                     damage = int(damage * charm['value'])
                     charms_to_consume.append(charm)
+                    used_charm_names.add(charm['name'])
                     game.log(f"Weakness triggered: x{charm['value']} -> Damage: {damage}")
 
         for c in charms_to_consume:
             caster.charms.remove(c)
 
         wards_to_consume = []
+        used_ward_names = set()
         for ward in target.wards:
-           if ward['school'] in [self.school, 'Universal', 'Elemental', 'Spirit']:
-               if ward['type'] in ['trap_flat', 'trap_fixed']:
-                   damage += ward['value']
-                   wards_to_consume.append(ward)
-                   game.log(f"Trap triggered: +{ward['value']} -> Damage: {damage}")
-               elif ward['type'] == 'shield':
-                   damage = max(0, damage - ward['value'])
-                   wards_to_consume.append(ward)
-                   game.log(f"Shield blocked {ward['value']} -> Damage: {damage}")
+            if ward['name'] in used_ward_names:
+                continue
+            if ward['school'] in [self.school, 'Universal', 'Elemental', 'Spirit']:
+                if ward['type'] in ['trap_flat', 'trap_fixed']:
+                    damage += ward['value']
+                    wards_to_consume.append(ward)
+                    used_ward_names.add(ward['name'])
+                    game.log(f"Trap triggered: +{ward['value']} -> Damage: {damage}")
+                elif ward['type'] == 'shield':
+                    damage = max(0, damage - ward['value'])
+                    wards_to_consume.append(ward)
+                    used_ward_names.add(ward['name'])
+                    game.log(f"Shield blocked {ward['value']} -> Damage: {damage}")
 
         for w in wards_to_consume:
             target.wards.remove(w)
@@ -127,29 +137,39 @@ class DoTSpell(DamageSpell):
         dot_bonus_flat = 0
 
         charms_to_consume = []
+        used_charm_names = set()
         for charm in caster.charms:
+            if charm['name'] in used_charm_names:
+                continue
             if charm['school'] in [self.school, 'Universal', 'Elemental', 'Spirit']:
-                 if charm['type'] in ['blade_flat', 'blade_fixed']:
+                if charm['type'] in ['blade_flat', 'blade_fixed']:
                     damage += charm['value']
                     dot_bonus_flat += charm['value']
                     charms_to_consume.append(charm)
-                 elif charm['type'] == 'weakness':
+                    used_charm_names.add(charm['name'])
+                elif charm['type'] == 'weakness':
                     damage = int(damage * charm['value'])
                     charms_to_consume.append(charm)
+                    used_charm_names.add(charm['name'])
 
         for c in charms_to_consume:
-             caster.charms.remove(c)
+            caster.charms.remove(c)
 
         wards_to_consume = []
+        used_ward_names = set()
         for ward in target.wards:
-           if ward['school'] in [self.school, 'Universal', 'Elemental', 'Spirit']:
-               if ward['type'] in ['trap_flat', 'trap_fixed']:
-                   damage += ward['value']
-                   dot_bonus_flat += ward['value']
-                   wards_to_consume.append(ward)
-               elif ward['type'] == 'shield':
-                   damage = max(0, damage - ward['value'])
-                   wards_to_consume.append(ward)
+            if ward['name'] in used_ward_names:
+                continue
+            if ward['school'] in [self.school, 'Universal', 'Elemental', 'Spirit']:
+                if ward['type'] in ['trap_flat', 'trap_fixed']:
+                    damage += ward['value']
+                    dot_bonus_flat += ward['value']
+                    wards_to_consume.append(ward)
+                    used_ward_names.add(ward['name'])
+                elif ward['type'] == 'shield':
+                    damage = max(0, damage - ward['value'])
+                    wards_to_consume.append(ward)
+                    used_ward_names.add(ward['name'])
 
         for w in wards_to_consume:
             target.wards.remove(w)
