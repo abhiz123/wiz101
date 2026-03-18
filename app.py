@@ -1,7 +1,8 @@
 from flask import Flask, jsonify, request, send_from_directory
 from engine import Game, Player
 from cards import (get_fire_deck, get_death_deck, get_ice_deck,
-                   get_life_deck, get_storm_deck, get_myth_deck)
+                   get_life_deck, get_storm_deck, get_myth_deck,
+                   get_center_deck)
 import os
 
 app = Flask(__name__)
@@ -16,7 +17,7 @@ def get_or_create_game():
         p2 = Player("Necromancer Alice", "Death", 7000)
         p2.deck = get_death_deck()
 
-        game_instance = Game(p1, p2)
+        game_instance = Game(p1, p2, center_deck=get_center_deck())
         game_instance.log(f"=== Match Start: {p1.name} vs {p2.name} ===")
     return game_instance
 
@@ -53,6 +54,8 @@ def handle_action():
     elif action == 'discard_card':
         card_id = data.get('card_id')
         success = game.discard_card(card_id)
+    elif action == 'draw_center_card':
+        success = game.draw_center_card()
     elif action == 'enchant_card':
         enchant_id = data.get('enchant_card_id')
         target_id = data.get('target_card_id')

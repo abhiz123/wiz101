@@ -3,7 +3,8 @@ from engine import (DamageSpell, DoTSpell, HealSpell, CharmSpell, WardSpell,
                     ReshuffleSpell, DrainSpell, UtilitySpell, WildBoltSpell,
                     DamageHoTSpell, DamageWithTrapSpell, SacrificeDamageSpell,
                     ClearBladeSpell, ClearShieldSpell, DamageStealBladeSpell,
-                    EnchantSpell)
+                    EnchantSpell, AuraSpell, StunSpell, CleanseTrapSpell,
+                    DisarmSpell, DonatePowerSpell, StealPipSpell)
 
 ELEMENTAL_SCHOOLS = {'Fire', 'Ice', 'Storm'}
 
@@ -149,5 +150,23 @@ def get_storm_deck():
         DamageSpell("Catch of the Day", "Storm", 4, 550, image="Catch of the day.png"),
     ]
     cards += get_universal_cards('Storm')
+    random.shuffle(cards)
+    return cards
+
+
+def get_center_deck():
+    cards = []
+    cards += [CharmSpell("Balance Blade", "Universal", 0, "Universal", "blade_flat", 20, image="Central/Balance Blade.png") for _ in range(2)]
+    cards += [AuraSpell("Berserk", "Universal", 0, "combat", outgoing_bonus=300, incoming_bonus=400, rounds=3, image="Central/Berserk.png") for _ in range(2)]
+    cards += [CleanseTrapSpell("Cleanse Ward", "Universal", 0, image="Central/Cleanse Ward.png") for _ in range(2)]
+    cards += [DisarmSpell("Disarm", "Universal", 1, image="Central/Disarm.png") for _ in range(2)]
+    cards += [DonatePowerSpell("Donate Power", "Universal", 1, image="Central/Donate Power.png") for _ in range(2)]
+    cards += [AuraSpell("Empowerment", "Universal", 0, "empowerment", pip_threshold=4, rounds=4, image="Central/Empowerment.png") for _ in range(2)]
+    cards += [AuraSpell("Frenzy", "Universal", 0, "combat", outgoing_bonus=400, incoming_bonus=300, rounds=3, image="Central/Frenzy.png") for _ in range(2)]
+    cards += [WardSpell("Hex", "Universal", 0, "Universal", "trap_flat", 30, image="Central/Hex.png") for _ in range(2)]
+    cards += [StealPipSpell("Steal Pip", "Universal", 0, image="Central/Steal Pip.png") for _ in range(2)]
+    cards += [StunSpell("Stun", "Universal", 0, image="Central/Stun.png") for _ in range(2)]
+    cards += [WardSpell("Tower Shield", "Ice", 2, "Universal", "shield", 350, image="Central/Tower Shield.png") for _ in range(2)]
+    cards += [HealSpell("Unicorn", "Life", 3, 400, image="Central/Unicorn.png") for _ in range(2)]
     random.shuffle(cards)
     return cards

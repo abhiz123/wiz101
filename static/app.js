@@ -33,6 +33,7 @@ function drawPip() { sendAction('draw_pip'); }
 function passTurn() { sendAction('pass_turn'); }
 function resetGame() { sendAction('reset'); location.reload(); }
 function discardCard(cardId) { sendAction('discard_card', { card_id: cardId }); }
+function drawCenterCard() { sendAction('draw_center_card'); }
 
 function canCastCard(player, card) {
     if (card.school === 'Shadow') {
@@ -223,6 +224,18 @@ function renderPlayer(p, containerPrefix, isOpponent) {
         else if (c.type === 'weakness') label += ` (x${c.value})`;
         statusContainer.innerHTML += `<div class="status-badge charm ${schoolClass}">${label}</div>`;
     });
+    if (p.aura) {
+        let auraLabel = p.aura.name;
+        if (p.aura.type === 'combat') {
+            auraLabel += ` (+${p.aura.outgoing_bonus} out / +${p.aura.incoming_bonus} in, ${p.aura.rounds_left}R)`;
+        } else {
+            auraLabel += ` (${p.aura.rounds_left}R)`;
+        }
+        statusContainer.innerHTML += `<div class="status-badge aura">${auraLabel}</div>`;
+    }
+    if (p.is_stunned) {
+        statusContainer.innerHTML += `<div class="status-badge stun">STUNNED</div>`;
+    }
 
     // Pips
     const pipsContainer = document.getElementById(`${containerPrefix}-pips`);
@@ -288,6 +301,7 @@ function render() {
     }
 
     document.getElementById('bag-count').innerText = `Pips: ${gameState.bag_count}`;
+    document.getElementById('center-deck-count').innerText = `Center: ${gameState.center_deck_count}`;
 
     // Render P1 (Bottom, always visible hand)
     renderPlayer(gameState.p1, 'p1', false);
@@ -301,6 +315,11 @@ function render() {
     const activeP = gameState.turn === gameState.p1.name ? gameState.p1 : gameState.p2;
     document.getElementById('btn-draw').disabled = activeP.has_drawn_pip || gameState.game_over;
     document.getElementById('btn-pass').disabled = gameState.game_over;
+
+    // Center deck button: need pip drawn, <7 cards in hand, 3+ pips, center deck not empty
+    const canDrawCenter = activeP.has_drawn_pip && activeP.hand.length < 7 &&
+        activeP.pips.length >= 3 && gameState.center_deck_count > 0 && !gameState.game_over;
+    document.getElementById('btn-center-draw').disabled = !canDrawCenter;
 
     const logList = document.getElementById('log-list');
     logList.innerHTML = '';

@@ -105,6 +105,11 @@ class DamageSpell(Card):
         for c in charms_to_consume:
             caster.charms.remove(c)
 
+        # Aura outgoing bonus
+        if caster.aura and caster.aura.get('type') == 'combat':
+            damage += caster.aura['outgoing_bonus']
+            game.log(f"Aura {caster.aura['name']} outgoing: +{caster.aura['outgoing_bonus']} -> Damage: {damage}")
+
         wards_to_consume = []
         used_ward_names = set()
         for ward in target.wards:
@@ -124,6 +129,11 @@ class DamageSpell(Card):
 
         for w in wards_to_consume:
             target.wards.remove(w)
+
+        # Aura incoming bonus (target takes more damage)
+        if target.aura and target.aura.get('type') == 'combat':
+            damage += target.aura['incoming_bonus']
+            game.log(f"Aura {target.aura['name']} incoming: +{target.aura['incoming_bonus']} -> Damage: {damage}")
 
         game.log(f"{self.name} hits {target.name} for {damage} final damage.")
         target.take_damage(damage, game)
@@ -170,6 +180,11 @@ class DoTSpell(DamageSpell):
         for c in charms_to_consume:
             caster.charms.remove(c)
 
+        # Aura outgoing bonus
+        if caster.aura and caster.aura.get('type') == 'combat':
+            damage += caster.aura['outgoing_bonus']
+            dot_bonus_flat += caster.aura['outgoing_bonus']
+
         wards_to_consume = []
         used_ward_names = set()
         for ward in target.wards:
@@ -188,6 +203,11 @@ class DoTSpell(DamageSpell):
 
         for w in wards_to_consume:
             target.wards.remove(w)
+
+        # Aura incoming bonus
+        if target.aura and target.aura.get('type') == 'combat':
+            damage += target.aura['incoming_bonus']
+            dot_bonus_flat += target.aura['incoming_bonus']
 
         game.log(f"{self.name} initial hit deals {damage} damage.")
         if damage > 0:
@@ -507,6 +527,112 @@ class DamageStealBladeSpell(DamageSpell):
             game.log(f"{self.name}: no blades to steal.")
 
 
+class AuraSpell(Card):
+    def __init__(self, name, school, cost, aura_type, outgoing_bonus=0, incoming_bonus=0, pip_threshold=0, rounds=3, **kwargs):
+        super().__init__(name, school, cost, **kwargs)
+        self.type = 'aura'
+        self.aura_type = aura_type
+        self.outgoing_bonus = outgoing_bonus
+        self.incoming_bonus = incoming_bonus
+        self.pip_threshold = pip_threshold
+        self.rounds = rounds
+
+    def to_dict(self):
+        d = super().to_dict()
+        d['aura_type'] = self.aura_type
+        d['outgoing_bonus'] = self.outgoing_bonus
+        d['incoming_bonus'] = self.incoming_bonus
+        d['rounds'] = self.rounds
+        return d
+
+    def cast(self, caster, target, pips_spent, game):
+        caster.aura = {
+            'name': self.name,
+            'type': self.aura_type,
+            'outgoing_bonus': self.outgoing_bonus,
+            'incoming_bonus': self.incoming_bonus,
+            'pip_threshold': self.pip_threshold,
+            'rounds_left': self.rounds
+        }
+        if self.aura_type == 'combat':
+            game.log(f"{caster.name} activates {self.name}: +{self.outgoing_bonus} outgoing, +{self.incoming_bonus} incoming for {self.rounds} rounds.")
+        else:
+            game.log(f"{caster.name} activates {self.name} for {self.rounds} rounds.")
+
+
+class StunSpell(Card):
+    def __init__(self, name, school, cost, **kwargs):
+        super().__init__(name, school, cost, **kwargs)
+        self.type = 'stun'
+
+    def cast(self, caster, target, pips_spent, game):
+        target.is_stunned = True
+        game.log(f"{caster.name} stuns {target.name} for 1 round!")
+
+
+class CleanseTrapSpell(Card):
+    def __init__(self, name, school, cost, **kwargs):
+        super().__init__(name, school, cost, **kwargs)
+        self.type = 'cleanse_trap'
+
+    def cast(self, caster, target, pips_spent, game):
+        traps = [w for w in caster.wards if w['type'] in ('trap_flat', 'trap_fixed')]
+        if traps:
+            trap = traps[-1]
+            caster.wards.remove(trap)
+            game.log(f"{caster.name} cleanses trap '{trap['name']}' (+{trap['value']}).")
+        else:
+            game.log(f"{caster.name} has no traps to cleanse.")
+
+
+class DisarmSpell(Card):
+    def __init__(self, name, school, cost, **kwargs):
+        super().__init__(name, school, cost, **kwargs)
+        self.type = 'disarm'
+
+    def cast(self, caster, target, pips_spent, game):
+        blades = [c for c in target.charms if c['type'] in ('blade_flat', 'blade_fixed')]
+        if blades:
+            blade = blades[-1]
+            target.charms.remove(blade)
+            game.log(f"{caster.name} disarms '{blade['name']}' (+{blade['value']}) from {target.name}!")
+        else:
+            game.log(f"{target.name} has no blades to disarm.")
+
+
+class DonatePowerSpell(Card):
+    def __init__(self, name, school, cost, donate_count=2, **kwargs):
+        super().__init__(name, school, cost, **kwargs)
+        self.type = 'donate_power'
+        self.donate_count = donate_count
+
+    def cast(self, caster, target, pips_spent, game):
+        donated = 0
+        for _ in range(self.donate_count):
+            if caster.pips and len(target.pips) < 10:
+                pip = caster.pips.pop(0)
+                target.pips.append(pip)
+                donated += 1
+        game.log(f"{caster.name} donates {donated} pips to {target.name}.")
+
+
+class StealPipSpell(Card):
+    def __init__(self, name, school, cost, **kwargs):
+        super().__init__(name, school, cost, **kwargs)
+        self.type = 'steal_pip'
+
+    def cast(self, caster, target, pips_spent, game):
+        if target.pips:
+            pip = target.pips.pop(0)
+            if len(caster.pips) < 10:
+                caster.pips.append(pip)
+                game.log(f"{caster.name} steals a [{pip}] pip from {target.name}!")
+            else:
+                game.log(f"{caster.name} steals a pip from {target.name} but pip bag is full!")
+        else:
+            game.log(f"{target.name} has no pips to steal.")
+
+
 class EnchantSpell(Card):
     def __init__(self, name, school, cost, enchant_target, modifier_field, modifier_value, **kwargs):
         super().__init__(name, school, cost, **kwargs)
@@ -559,6 +685,8 @@ class Player:
         self.is_dead = False
         self.has_drawn_pip_this_turn = False
         self.has_cast_this_turn = False
+        self.aura = None
+        self.is_stunned = False
 
     def draw_card(self, amount=1):
         for _ in range(amount):
@@ -696,17 +824,21 @@ class Player:
             'hots': self.hots,
             'is_dead': self.is_dead,
             'has_drawn_pip': self.has_drawn_pip_this_turn,
-            'has_cast': self.has_cast_this_turn
+            'has_cast': self.has_cast_this_turn,
+            'aura': self.aura,
+            'is_stunned': self.is_stunned
         }
 
 class Game:
-    def __init__(self, p1, p2):
+    def __init__(self, p1, p2, center_deck=None):
         self.p1 = p1
         self.p2 = p2
         self.bag = PipBag(num_players=2)
         self.round = 1
         self.turn = self.p1.name
         self.logs = []
+        self.center_deck = center_deck or []
+        random.shuffle(self.center_deck)
         # Setup hands
         self.p1.draw_card(7)
         self.p2.draw_card(7)
@@ -732,6 +864,11 @@ class Game:
             player.process_dots(self)
             player.process_hots(self)
             self.log(f"{player.name} started turn: drew pip [{drawn}], drew 1 card.")
+            # Stun: player can't cast this turn
+            if player.is_stunned:
+                player.has_cast_this_turn = True
+                player.is_stunned = False
+                self.log(f"{player.name} is stunned and cannot cast this turn!")
             self.check_game_over()
             return True
         return False
@@ -773,20 +910,58 @@ class Game:
         target = self.p1 if target_name == self.p1.name else self.p2
 
         # Override target context for buffs/self-heals
-        if isinstance(card, (HealSpell, ReshuffleSpell, UtilitySpell)) or (isinstance(card, CharmSpell) and card.charm_type in ['blade_flat', 'blade_fixed']):
+        if isinstance(card, (HealSpell, ReshuffleSpell, UtilitySpell, AuraSpell, CleanseTrapSpell)) or (isinstance(card, CharmSpell) and card.charm_type in ['blade_flat', 'blade_fixed']):
             target = player
         elif isinstance(card, WardSpell) and card.ward_type == 'shield':
             target = player  # shields go on yourself
         elif isinstance(card, CharmSpell) and card.charm_type == 'weakness':
             target = self.inactive_player()
-        elif isinstance(card, (ClearBladeSpell, ClearShieldSpell)):
+        elif isinstance(card, (ClearBladeSpell, ClearShieldSpell, StunSpell, DisarmSpell, StealPipSpell)):
             target = self.inactive_player()
+        elif isinstance(card, DonatePowerSpell):
+            pass  # keep player-selected target
         elif not isinstance(card, HealSpell) and not isinstance(card, CharmSpell):
             target = self.inactive_player()
 
         card.cast(player, target, pips_spent, self)
+
+        # Empowerment trigger: target gains a pip if hit by 4+ pip spell
+        if isinstance(card, DamageSpell) and target.aura and target.aura.get('type') == 'empowerment':
+            if card.cost >= target.aura.get('pip_threshold', 4):
+                drawn = target.draw_pip(self.bag)
+                if drawn:
+                    self.log(f"{target.name}'s Empowerment triggers: gained a [{drawn}] pip!")
+
         player.discard.append(card)
         self.check_game_over()
+        return True
+
+    def draw_center_card(self):
+        if self.p1.is_dead or self.p2.is_dead:
+            return False
+        player = self.active_player()
+        if not player.has_drawn_pip_this_turn:
+            return False
+        if len(player.hand) >= 7:
+            return False
+        if not self.center_deck:
+            return False
+        if len(player.pips) < 3:
+            return False
+        # Spend 3 cheapest pips (Normal first, then Power/School)
+        pips_to_remove = []
+        remaining = 3
+        for p in sorted(player.pips, key=lambda x: 0 if x == 'Normal' else 1):
+            if remaining <= 0:
+                break
+            pips_to_remove.append(p)
+            remaining -= 1
+        for p in pips_to_remove:
+            player.pips.remove(p)
+            self.bag.return_pip('School' if p == player.school else p)
+        card = self.center_deck.pop(0)
+        player.hand.append(card)
+        self.log(f"{player.name} draws a center card: {card.name} (spent 3 pips).")
         return True
 
     def pass_turn(self):
@@ -794,6 +969,12 @@ class Game:
         if not player.has_drawn_pip_this_turn:
              # Force start of turn stuff
              self.draw_pip()
+        # Process aura duration
+        if player.aura:
+            player.aura['rounds_left'] -= 1
+            if player.aura['rounds_left'] <= 0:
+                self.log(f"{player.name}'s {player.aura['name']} aura has expired.")
+                player.aura = None
         self.log(f"{player.name} ends their turn.")
         self.turn = self.inactive_player().name
         self.active_player().has_drawn_pip_this_turn = False
@@ -828,6 +1009,7 @@ class Game:
             'p1': self.p1.to_dict(),
             'p2': self.p2.to_dict(),
             'bag_count': self.bag.count(),
+            'center_deck_count': len(self.center_deck),
             'logs': self.logs[-10:], # Return last 10 logs for UI
             'game_over': self.p1.is_dead or self.p2.is_dead
         }

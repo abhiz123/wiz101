@@ -188,3 +188,16 @@ button.danger:hover { background: rgba(239, 68, 68, 0.2); }
 .enchanted-badge { position: absolute; bottom: 8px; left: 50%; transform: translateX(-50%); background: linear-gradient(135deg,#facc15,#f59e0b); color: #78350f; font-size: 0.7rem; font-weight: 700; padding: 2px 8px; border-radius: 4px; }
 .enchant-banner { position: fixed; top: 20px; left: 50%; transform: translateX(-50%); background: rgba(250,204,21,0.9); color: #78350f; font-weight: 700; padding: 8px 24px; border-radius: 8px; z-index: 50; }
 .enchant-banner.hidden { display: none; }
+
+/* Center Deck */
+#center-deck {
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    width: 150px; background: var(--glass-bg); border-radius: 16px; border: 1px dashed var(--glass-border);
+    gap: 8px; padding: 10px;
+}
+.center-deck-img { height: 80px; width: auto; border-radius: 8px; }
+#center-deck-count { font-weight: 600; font-size: 0.9rem; }
+
+/* Aura Status */
+.status-badge.aura { background: rgba(168, 85, 247, 0.25); border: 1px solid #a855f7; color: #e9d5ff; }
+.status-badge.stun { background: rgba(234, 179, 8, 0.25); border: 1px solid #eab308; color: #fef08a; }
