@@ -53,6 +53,10 @@ def handle_action():
     elif action == 'discard_card':
         card_id = data.get('card_id')
         success = game.discard_card(card_id)
+    elif action == 'enchant_card':
+        enchant_id = data.get('enchant_card_id')
+        target_id = data.get('target_card_id')
+        success = game.enchant_card(enchant_id, target_id)
     elif action == 'pass_turn':
         game.pass_turn()
         success = True

@@ -1,7 +1,13 @@
 let gameState = null;
 let currentCastingCard = null;
 
+// Enchant mode state
+let enchantMode = false;
+let enchantCardId = null;
+let enchantCardData = null;
+
 async function fetchState() {
+    if (enchantMode) return; // Don't disrupt enchant mode
     const res = await fetch('/api/state');
     gameState = await res.json();
     render();
@@ -47,13 +53,78 @@ function canCastCard(player, card) {
     }
 }
 
-function initiateCast(cardId, cardName) {
+function isValidEnchantTarget(enchantData, targetCard) {
+    if (targetCard.enchanted || targetCard.id === enchantCardId) return false;
+    if (enchantData.enchant_target === 'damage') {
+        return ['damage','dot','drain','sacrifice','damage_hot','damage_trap','damage_steal_blade']
+            .includes(targetCard.type);
+    }
+    if (enchantData.enchant_target === 'blade') {
+        return targetCard.type === 'charm' && targetCard.charm_type === 'blade_flat';
+    }
+    if (enchantData.enchant_target === 'trap') {
+        return targetCard.type === 'ward' && (targetCard.ward_type === 'trap_flat' || targetCard.ward_type === 'trap_fixed');
+    }
+    return false;
+}
+
+function enterEnchantMode(cardId, cardData) {
+    enchantMode = true;
+    enchantCardId = cardId;
+    enchantCardData = cardData;
+    document.getElementById('enchant-banner').classList.remove('hidden');
+    render();
+}
+
+function exitEnchantMode() {
+    enchantMode = false;
+    enchantCardId = null;
+    enchantCardData = null;
+    document.getElementById('enchant-banner').classList.add('hidden');
+    render();
+}
+
+async function applyEnchant(targetCardId) {
+    const payload = {
+        action: 'enchant_card',
+        player: gameState.turn,
+        enchant_card_id: enchantCardId,
+        target_card_id: targetCardId
+    };
+    const res = await fetch('/api/action', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+    });
+    const data = await res.json();
+    if (data.success && data.state) {
+        gameState = data.state;
+    }
+    enchantMode = false;
+    enchantCardId = null;
+    enchantCardData = null;
+    document.getElementById('enchant-banner').classList.add('hidden');
+    render();
+}
+
+function initiateCast(cardId, cardData) {
     if(!gameState) return;
     const isP1Turn = gameState.turn === gameState.p1.name;
     const activeP = isP1Turn ? gameState.p1 : gameState.p2;
     if(!activeP.has_drawn_pip) {
         alert("You must draw a pip first!"); return;
     }
+
+    // Find the card data from the hand
+    const card = activeP.hand.find(c => c.id === cardId);
+    if (!card) return;
+
+    // Enchant cards: enter enchant mode (free action, skip has_cast check)
+    if (card.type === 'enchant') {
+        enterEnchantMode(cardId, card);
+        return;
+    }
+
     if(activeP.has_cast) {
         alert("You already cast this turn!"); return;
     }
@@ -74,14 +145,14 @@ function initiateCast(cardId, cardName) {
     }
 
     currentCastingCard = cardId;
-    document.getElementById('spell-name-display').innerText = cardName;
+    document.getElementById('spell-name-display').innerText = card.name;
     document.getElementById('cast-modal').classList.remove('hidden');
 }
 
 async function confirmCast(targetId) {
     const targetName = targetId === 'p1' ? gameState.p1.name : gameState.p2.name;
     document.getElementById('cast-modal').classList.add('hidden');
-    
+
     // Custom inline fetch to trigger animations immediately on cast success
     const payload = { action: 'cast_spell', player: gameState.turn, card_id: currentCastingCard, target_name: targetName };
     const res = await fetch('/api/action', {
@@ -89,7 +160,7 @@ async function confirmCast(targetId) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
     });
-    
+
     const data = await res.json();
     if(data.success && data.state) {
         // Did we fizzle? Look at the newest log
@@ -123,7 +194,7 @@ function renderPlayer(p, containerPrefix, isOpponent) {
     else area.classList.remove('active-turn');
 
     document.getElementById(`${containerPrefix}-name`).innerText = p.name;
-    
+
     // Health
     const pct = Math.max(0, (p.health / p.max_health) * 100);
     document.getElementById(`${containerPrefix}-health-fill`).style.width = `${pct}%`;
@@ -134,6 +205,9 @@ function renderPlayer(p, containerPrefix, isOpponent) {
     statusContainer.innerHTML = '';
     p.dots.forEach(d => {
         statusContainer.innerHTML += `<div class="status-badge dot">${d.name} (${d.damage}/R)</div>`;
+    });
+    p.hots.forEach(h => {
+        statusContainer.innerHTML += `<div class="status-badge hot">${h.name} (+${h.heal}/R)</div>`;
     });
     p.wards.forEach(w => {
         const schoolClass = 'ward-' + w.school.toLowerCase();
@@ -164,18 +238,41 @@ function renderPlayer(p, containerPrefix, isOpponent) {
     const handContainer = document.getElementById(`${containerPrefix}-hand`);
     handContainer.innerHTML = '';
     p.hand.forEach(c => {
-        // Card is playable only if: it's your turn, pip drawn, not yet cast, and you can afford it
-        const globallyBlocked = !isActive || !p.has_drawn_pip || p.has_cast;
-        const affordable = canCastCard(p, c);
-        const disabledClass = (globallyBlocked || !affordable) ? 'disabled' : '';
         let cardHtml = '';
         if(isOpponent) {
             cardHtml = `<div class="card-wrapper"><img src="/static/cards/Center%20card%20Back%20Final.png" class="card" alt="hidden card"></div>`;
+        } else if (enchantMode && isActive) {
+            // Enchant mode rendering
+            if (c.id === enchantCardId) {
+                // The enchant source card — click to cancel
+                cardHtml = `<div class="card-wrapper">
+                    <img src="/static/cards/${c.image}" class="card enchant-source" onclick="exitEnchantMode()" title="Click to cancel enchant">
+                </div>`;
+            } else if (isValidEnchantTarget(enchantCardData, c)) {
+                // Valid enchant target — click to apply
+                cardHtml = `<div class="card-wrapper">
+                    <img src="/static/cards/${c.image}" class="card enchant-target" onclick="applyEnchant('${c.id}')" title="Click to enchant this card">
+                    ${c.enchanted ? `<div class="enchanted-badge">Enchanted +${c.enchant_amount}</div>` : ''}
+                </div>`;
+            } else {
+                // Not a valid target
+                cardHtml = `<div class="card-wrapper">
+                    <img src="/static/cards/${c.image}" class="card disabled" title="Cost: ${c.cost} | ${c.school}">
+                    ${c.enchanted ? `<div class="enchanted-badge">Enchanted +${c.enchant_amount}</div>` : ''}
+                </div>`;
+            }
         } else {
-            const onCast = (globallyBlocked || !affordable) ? '' : `onclick="initiateCast('${c.id}', '${c.name}')"`;
+            // Normal (non-enchant) mode
+            const isEnchantCard = c.type === 'enchant';
+            // Enchant cards are free actions: skip has_cast check for them
+            const globallyBlocked = !isActive || !p.has_drawn_pip || (p.has_cast && !isEnchantCard);
+            const affordable = isEnchantCard || canCastCard(p, c);
+            const disabledClass = (globallyBlocked || !affordable) ? 'disabled' : '';
+            const onCast = (globallyBlocked || !affordable) ? '' : `onclick="initiateCast('${c.id}')"`;
             const rightClick = isActive ? `oncontextmenu="event.preventDefault(); discardCard('${c.id}')"` : `oncontextmenu="event.preventDefault()"`;
             cardHtml = `<div class="card-wrapper">
                 <img src="/static/cards/${c.image}" class="card ${disabledClass}" ${onCast} ${rightClick} title="Cost: ${c.cost} | ${c.school} (Right-click to discard)">
+                ${c.enchanted ? `<div class="enchanted-badge">Enchanted +${c.enchant_amount}</div>` : ''}
             </div>`;
         }
         handContainer.innerHTML += cardHtml;
@@ -191,14 +288,14 @@ function render() {
     }
 
     document.getElementById('bag-count').innerText = `Pips: ${gameState.bag_count}`;
-    
+
     // Render P1 (Bottom, always visible hand)
     renderPlayer(gameState.p1, 'p1', false);
-    
+
     // Render P2 (Top. Need a way to show their hand? For local 2P pass-and-play, maybe we reveal both?
     // The prompt says "playable 2-player local web application". Let's reveal both hands for testing.)
     renderPlayer(gameState.p2, 'p2', false); // changed isOpponent to false for Local 2P
-    
+
     // Disable buttons if not P1 turn (for demo, assume we just pass mouse or click around)
     // Actually since we turned off isOpponent=true, let's keep controls enabled for whoever the active player's screen side is.
     const activeP = gameState.turn === gameState.p1.name ? gameState.p1 : gameState.p2;
@@ -211,6 +308,13 @@ function render() {
         logList.innerHTML += `<li>${logLine}</li>`;
     });
 }
+
+// ESC key to cancel enchant mode
+document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && enchantMode) {
+        exitEnchantMode();
+    }
+});
 
 // Init
 setInterval(fetchState, 2000); // Poll explicitly if you play in two tabs

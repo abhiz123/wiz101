@@ -42,6 +42,8 @@ class Card:
         self.school_pip_cost = school_pip_cost
         self.image = image or (name + '.png')
         self.type = 'normal'
+        self.enchanted = False
+        self.enchant_amount = 0
 
     def cast(self, caster, target, pips_spent, game):
         pass
@@ -55,7 +57,9 @@ class Card:
             'accuracy': self.accuracy,
             'school_pip_cost': self.school_pip_cost,
             'type': self.type,
-            'image': self.image
+            'image': self.image,
+            'enchanted': self.enchanted,
+            'enchant_amount': self.enchant_amount
         }
 
     def __str__(self):
@@ -123,6 +127,7 @@ class DamageSpell(Card):
 
         game.log(f"{self.name} hits {target.name} for {damage} final damage.")
         target.take_damage(damage, game)
+        return damage
 
 class DoTSpell(DamageSpell):
     def __init__(self, name, school, cost, initial_damage, dot_damage, dot_rounds, accuracy=100, **kwargs):
@@ -337,26 +342,29 @@ class ReshuffleSpell(Card):
 
 
 class DrainSpell(DamageSpell):
-    def __init__(self, name, school, cost, base_damage, heal_amount, **kwargs):
+    def __init__(self, name, school, cost, base_damage, heal_percent=0.5, **kwargs):
         super().__init__(name, school, cost, base_damage, **kwargs)
-        self.heal_amount = heal_amount
+        self.heal_percent = heal_percent
         self.type = 'drain'
 
     def to_dict(self):
         d = super().to_dict()
-        d['heal_amount'] = self.heal_amount
+        d['heal_percent'] = self.heal_percent
         return d
 
     def cast(self, caster, target, pips_spent, game):
-        super().cast(caster, target, pips_spent, game)
-        caster.heal(self.heal_amount, game)
+        actual_damage = super().cast(caster, target, pips_spent, game)
+        heal = int(actual_damage * self.heal_percent)
+        if heal > 0:
+            caster.heal(heal, game)
 
 
 class UtilitySpell(Card):
-    def __init__(self, name, school, cost, utility_type, value=0, **kwargs):
+    def __init__(self, name, school, cost, utility_type, value=0, self_damage=0, **kwargs):
         super().__init__(name, school, cost, **kwargs)
         self.utility_type = utility_type
         self.value = value
+        self.self_damage = self_damage
         self.type = 'utility'
 
     def to_dict(self):
@@ -366,6 +374,9 @@ class UtilitySpell(Card):
         return d
 
     def cast(self, caster, target, pips_spent, game):
+        if self.self_damage > 0:
+            game.log(f"{caster.name} takes {self.self_damage} damage from {self.name}!")
+            caster.take_damage(self.self_damage, game)
         if self.utility_type == 'add_pips':
             for _ in range(self.value):
                 if len(caster.pips) < 10:
@@ -376,12 +387,158 @@ class UtilitySpell(Card):
 class WildBoltSpell(DamageSpell):
     def __init__(self, name, school, cost, **kwargs):
         super().__init__(name, school, cost, 0, **kwargs)
-        self.type = 'damage'
+        self.type = 'wild_bolt'
 
     def cast(self, caster, target, pips_spent, game):
         self.base_damage = random.choice([10, 100, 1000])
         game.log(f"Wild Bolt rolls {self.base_damage}!")
         super().cast(caster, target, pips_spent, game)
+
+
+class DamageHoTSpell(DamageSpell):
+    def __init__(self, name, school, cost, base_damage, hot_per_round, hot_rounds, **kwargs):
+        super().__init__(name, school, cost, base_damage, **kwargs)
+        self.hot_per_round = hot_per_round
+        self.hot_rounds = hot_rounds
+        self.type = 'damage_hot'
+
+    def cast(self, caster, target, pips_spent, game):
+        super().cast(caster, target, pips_spent, game)
+        caster.hots.append({
+            'name': self.name, 'heal': self.hot_per_round, 'rounds_left': self.hot_rounds
+        })
+        game.log(f"{self.name} will heal {caster.name} for {self.hot_per_round}/round for {self.hot_rounds} rounds.")
+
+
+class DamageWithTrapSpell(DamageSpell):
+    def __init__(self, name, school, cost, base_damage, trap_school, trap_value, **kwargs):
+        super().__init__(name, school, cost, base_damage, **kwargs)
+        self.trap_school = trap_school
+        self.trap_value = trap_value
+        self.type = 'damage_trap'
+
+    def cast(self, caster, target, pips_spent, game):
+        super().cast(caster, target, pips_spent, game)
+        target.wards.append({
+            'name': self.name, 'school': self.trap_school,
+            'type': 'trap_fixed', 'value': self.trap_value
+        })
+        game.log(f"{self.name} places +{self.trap_value} {self.trap_school} trap on {target.name}.")
+
+
+class SacrificeDamageSpell(DamageSpell):
+    def __init__(self, name, school, cost, base_damage, self_damage, **kwargs):
+        super().__init__(name, school, cost, base_damage, **kwargs)
+        self.self_damage = self_damage
+        self.type = 'sacrifice'
+
+    def cast(self, caster, target, pips_spent, game):
+        game.log(f"{caster.name} sacrifices {self.self_damage} health!")
+        caster.take_damage(self.self_damage, game)
+        super().cast(caster, target, pips_spent, game)
+
+
+class ClearBladeSpell(Card):
+    def __init__(self, name, school, cost, max_clear, shield_value, **kwargs):
+        super().__init__(name, school, cost, **kwargs)
+        self.max_clear = max_clear
+        self.shield_value = shield_value
+        self.type = 'clear_blade'
+
+    def cast(self, caster, target, pips_spent, game):
+        cleared = 0
+        blades_to_remove = []
+        for charm in target.charms:
+            if charm['type'] in ['blade_flat', 'blade_fixed'] and cleared < self.max_clear:
+                blades_to_remove.append(charm)
+                cleared += 1
+        for c in blades_to_remove:
+            target.charms.remove(c)
+            caster.wards.append({
+                'name': self.name, 'school': 'Universal',
+                'type': 'shield', 'value': self.shield_value
+            })
+            game.log(f"Cleared blade '{c['name']}' from {target.name}, +{self.shield_value} shield on {caster.name}.")
+        if cleared == 0:
+            game.log(f"{self.name}: no blades to clear.")
+
+
+class ClearShieldSpell(Card):
+    def __init__(self, name, school, cost, max_clear, dot_per_round, dot_rounds, school_pip_cost=0, **kwargs):
+        super().__init__(name, school, cost, school_pip_cost=school_pip_cost, **kwargs)
+        self.max_clear = max_clear
+        self.dot_per_round = dot_per_round
+        self.dot_rounds = dot_rounds
+        self.type = 'clear_shield'
+
+    def cast(self, caster, target, pips_spent, game):
+        cleared = 0
+        shields_to_remove = []
+        for ward in target.wards:
+            if ward['type'] == 'shield' and cleared < self.max_clear:
+                shields_to_remove.append(ward)
+                cleared += 1
+        for w in shields_to_remove:
+            target.wards.remove(w)
+            target.dots.append({
+                'name': self.name, 'damage': self.dot_per_round, 'rounds_left': self.dot_rounds
+            })
+            game.log(f"Cleared shield '{w['name']}' from {target.name}, +DoT {self.dot_per_round}/round for {self.dot_rounds} rounds.")
+        if cleared == 0:
+            game.log(f"{self.name}: no shields to clear.")
+
+
+class DamageStealBladeSpell(DamageSpell):
+    def __init__(self, name, school, cost, base_damage, **kwargs):
+        super().__init__(name, school, cost, base_damage, **kwargs)
+        self.type = 'damage_steal_blade'
+
+    def cast(self, caster, target, pips_spent, game):
+        super().cast(caster, target, pips_spent, game)
+        # Steal the last blade from target
+        for i in range(len(target.charms) - 1, -1, -1):
+            charm = target.charms[i]
+            if charm['type'] in ['blade_flat', 'blade_fixed']:
+                target.charms.pop(i)
+                caster.charms.append(charm)
+                game.log(f"{caster.name} steals blade '{charm['name']}' (+{charm['value']}) from {target.name}!")
+                break
+        else:
+            game.log(f"{self.name}: no blades to steal.")
+
+
+class EnchantSpell(Card):
+    def __init__(self, name, school, cost, enchant_target, modifier_field, modifier_value, **kwargs):
+        super().__init__(name, school, cost, **kwargs)
+        self.type = 'enchant'
+        self.enchant_target = enchant_target
+        self.modifier_field = modifier_field
+        self.modifier_value = modifier_value
+
+    def to_dict(self):
+        d = super().to_dict()
+        d['enchant_target'] = self.enchant_target
+        d['modifier_value'] = self.modifier_value
+        return d
+
+    def can_enchant(self, target_card):
+        if target_card.enchanted:
+            return False
+        if self.enchant_target == 'damage':
+            return isinstance(target_card, DamageSpell) and not isinstance(target_card, WildBoltSpell)
+        elif self.enchant_target == 'blade':
+            return isinstance(target_card, CharmSpell) and target_card.charm_type == 'blade_flat'
+        elif self.enchant_target == 'trap':
+            return isinstance(target_card, WardSpell) and target_card.ward_type in ('trap_flat', 'trap_fixed')
+        return False
+
+    def apply(self, target_card):
+        if self.modifier_field == 'base_damage':
+            target_card.base_damage += self.modifier_value
+        elif self.modifier_field == 'value':
+            target_card.value += self.modifier_value
+        target_card.enchanted = True
+        target_card.enchant_amount = self.modifier_value
 
 
 class Player:
@@ -397,6 +554,7 @@ class Player:
         self.charms = []
         self.wards = []
         self.dots = []
+        self.hots = []
         self.lucky_number = random.randint(1, 19)
         self.is_dead = False
         self.has_drawn_pip_this_turn = False
@@ -407,11 +565,7 @@ class Player:
             if len(self.hand) >= 7:
                 break
             if not self.deck:
-                if not self.discard:
-                    break
-                self.deck = self.discard
-                self.discard = []
-                random.shuffle(self.deck)
+                break
             card = self.deck.pop(0)
             self.hand.append(card)
 
@@ -446,6 +600,16 @@ class Player:
             if dot['rounds_left'] > 0:
                 remaining_dots.append(dot)
         self.dots = remaining_dots
+
+    def process_hots(self, game):
+        remaining = []
+        for hot in self.hots:
+            game.log(f"{self.name} heals {hot['heal']} HoT from {hot['name']}.")
+            self.heal(hot['heal'], game)
+            hot['rounds_left'] -= 1
+            if hot['rounds_left'] > 0:
+                remaining.append(hot)
+        self.hots = remaining
 
     def can_cast(self, card):
         if card.school == 'Shadow':
@@ -529,6 +693,7 @@ class Player:
             'charms': self.charms,
             'wards': self.wards,
             'dots': self.dots,
+            'hots': self.hots,
             'is_dead': self.is_dead,
             'has_drawn_pip': self.has_drawn_pip_this_turn,
             'has_cast': self.has_cast_this_turn
@@ -565,10 +730,29 @@ class Game:
             player.has_drawn_pip_this_turn = True
             player.draw_card(7)
             player.process_dots(self)
+            player.process_hots(self)
             self.log(f"{player.name} started turn: drew pip [{drawn}], drew 1 card.")
             self.check_game_over()
             return True
         return False
+
+    def enchant_card(self, enchant_card_id, target_card_id):
+        if self.p1.is_dead or self.p2.is_dead:
+            return False
+        player = self.active_player()
+        if not player.has_drawn_pip_this_turn:
+            return False
+        enchant = next((c for c in player.hand if c.id == enchant_card_id), None)
+        target = next((c for c in player.hand if c.id == target_card_id), None)
+        if not enchant or not target or not isinstance(enchant, EnchantSpell):
+            return False
+        if not enchant.can_enchant(target):
+            return False
+        enchant.apply(target)
+        player.hand.remove(enchant)
+        player.discard.append(enchant)
+        self.log(f"{player.name} enchants {target.name} with {enchant.name} (+{enchant.modifier_value})!")
+        return True
 
     def cast_spell(self, card_id, target_name):
         if self.p1.is_dead or self.p2.is_dead:
@@ -594,6 +778,8 @@ class Game:
         elif isinstance(card, WardSpell) and card.ward_type == 'shield':
             target = player  # shields go on yourself
         elif isinstance(card, CharmSpell) and card.charm_type == 'weakness':
+            target = self.inactive_player()
+        elif isinstance(card, (ClearBladeSpell, ClearShieldSpell)):
             target = self.inactive_player()
         elif not isinstance(card, HealSpell) and not isinstance(card, CharmSpell):
             target = self.inactive_player()
